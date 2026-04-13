@@ -9,7 +9,7 @@ from . import benchmark, init, stage1, stage2, stage3, validate
 
 app = typer.Typer(
     add_completion=False,
-    help="Chronicle family oral-history pipeline CLI.",
+    help="Chronicle multi-stage agentic audio-processing workflow CLI.",
     no_args_is_help=True,
 )
 

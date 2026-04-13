@@ -4,7 +4,7 @@ Status: current
 
 ## Purpose
 
-Chronicle is a local-first oral-history pipeline. It takes one session input bundle, runs staged processing, and writes reviewable outputs without losing provenance.
+Chronicle is a local-first, multi-stage agentic audio-processing workflow. It takes one session input bundle, runs staged CLI processing, and writes reviewable outputs without losing provenance.
 
 The current implemented path is:
 1. validate a session bundle
@@ -199,7 +199,7 @@ Current optimization findings from profiling:
 
 Important boundaries:
 - Stage 1 does not assign speakers
-- Stage 1 does not use family metadata to alter wording
+- Stage 1 does not use contextual metadata to alter wording
 - Stage 1 preserves decode uncertainty with explicit markers like empty chunks or `<unk>`
 - Stage 1 preserves source-audio provenance inside the combined session artifact
 

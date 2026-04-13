@@ -1,6 +1,6 @@
 # Chronicle
 
-Chronicle is a local-first oral-history pipeline for turning interview recordings into reviewable source material.
+Chronicle is a local-first, multi-stage agentic audio-processing workflow for turning interview recordings into reviewable source material through a CLI.
 
 Current implemented stages:
 - Stage 1 transcription
@@ -30,7 +30,7 @@ models/
 examples/
 ```
 
-`inputs/` and `outputs/` are intentionally gitignored because they contain private family material.
+`inputs/` and `outputs/` are intentionally gitignored because they can contain private source material.
 `models/` is also gitignored by default because Chronicle can manage local model files there.
 Sanitized scaffolds for a public setup live under `examples/inputs/`.
 

@@ -3,9 +3,9 @@ requires = ["hatchling>=1.27.0"]
 build-backend = "hatchling.build"
 
 [project]
-name = "family-oral-history-pipeline"
+name = "chronicle"
 version = "0.1.0"
-description = "Private family oral-history pipeline for transcription, diarization, and chronology extraction."
+description = "Multi-stage agentic audio-processing workflow for transcription, diarization, and chronology extraction."
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
 dependencies = [

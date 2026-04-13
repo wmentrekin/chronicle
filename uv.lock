@@ -142,7 +142,7 @@ wheels = [
 ]
 
 [[package]]
-name = "family-oral-history-pipeline"
+name = "chronicle"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
