@@ -160,6 +160,11 @@ def transcribe_command(
         "--parakeet-chunk-length-s",
         help="Chunk length in seconds for the Parakeet backend.",
     ),
+    parakeet_batch_size: int = typer.Option(
+        4,
+        "--parakeet-batch-size",
+        help="Number of Parakeet chunks to send per pipeline call.",
+    ),
     experimental_overlap: bool = typer.Option(
         False,
         "--experimental-overlap/--no-experimental-overlap",
@@ -195,6 +200,7 @@ def transcribe_command(
             beam_size=beam_size,
             vad_filter=vad_filter,
             parakeet_chunk_length_s=parakeet_chunk_length_s,
+            parakeet_batch_size=parakeet_batch_size,
             parakeet_overlap_stride_s=(parakeet_chunk_length_s / 2.0) if experimental_overlap else None,
             parakeet_model_dir=parakeet_model_dir,
             console=console,
@@ -240,6 +246,7 @@ def transcribe_command(
                 "beam_size": beam_size,
                 "vad_filter": vad_filter,
                 "parakeet_chunk_length_s": parakeet_chunk_length_s,
+                "parakeet_batch_size": parakeet_batch_size,
                 "experimental_overlap": experimental_overlap,
                 "parakeet_overlap_stride_s": (parakeet_chunk_length_s / 2.0) if experimental_overlap else None,
             },

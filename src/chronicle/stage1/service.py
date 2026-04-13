@@ -324,6 +324,7 @@ def transcribe_with_parakeet(
     model_dir: Path,
     device: str,
     chunk_length_s: int,
+    batch_size: int = 1,
     overlap_stride_s: Optional[float] = None,
     progress_callback: Optional[Callable[[int, int, float], None]] = None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
@@ -340,6 +341,40 @@ def transcribe_with_parakeet(
         raise StageExecutionError("Parakeet overlap stride must be smaller than the chunk length.")
 
     _, asr_pipeline = build_parakeet_pipeline(model_dir=model_dir, device=device)
+    return transcribe_with_parakeet_pipeline(
+        audio=audio,
+        language=language,
+        model_name=model_name,
+        model_dir=model_dir,
+        device=device,
+        chunk_length_s=chunk_length_s,
+        batch_size=batch_size,
+        overlap_stride_s=overlap_stride_s,
+        asr_pipeline=asr_pipeline,
+        progress_callback=progress_callback,
+    )
+
+
+def transcribe_with_parakeet_pipeline(
+    audio: np.ndarray,
+    language: str,
+    model_name: str,
+    model_dir: Path,
+    device: str,
+    chunk_length_s: int,
+    asr_pipeline: Any,
+    batch_size: int = 1,
+    overlap_stride_s: Optional[float] = None,
+    progress_callback: Optional[Callable[[int, int, float], None]] = None,
+) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
+    if chunk_length_s <= 0:
+        raise StageExecutionError("Parakeet chunk length must be a positive integer.")
+    if batch_size <= 0:
+        raise StageExecutionError("Parakeet batch size must be a positive integer.")
+    if overlap_stride_s is not None and overlap_stride_s <= 0:
+        raise StageExecutionError("Parakeet overlap stride must be positive when provided.")
+    if overlap_stride_s is not None and overlap_stride_s >= chunk_length_s:
+        raise StageExecutionError("Parakeet overlap stride must be smaller than the chunk length.")
 
     chunk_samples = chunk_length_s * STAGE1_TRANSCRIPT_SAMPLE_RATE
     stride_samples = int((overlap_stride_s or chunk_length_s) * STAGE1_TRANSCRIPT_SAMPLE_RATE)
@@ -354,35 +389,47 @@ def transcribe_with_parakeet(
     word_timestamps: list[dict[str, Any]] = []
     unk_chunk_count = 0
     empty_chunk_count = 0
+    pending_batch: list[tuple[int, int, np.ndarray]] = []
     start_sample = 0
-    for index in range(chunk_count):
+    while True:
         end_sample = min(len(audio), start_sample + chunk_samples)
         chunk_audio = audio[start_sample:end_sample]
-        if chunk_audio.size == 0:
-            continue
+        if chunk_audio.size:
+            pending_batch.append((start_sample, end_sample, chunk_audio))
 
-        result = asr_pipeline(chunk_audio)
-        raw_text = str(result.get("text", "")).strip()
-        text = normalize_text(raw_text)
-        decode_status = "ok"
-        if not text:
-            decode_status = "empty"
-            empty_chunk_count += 1
-        elif text == "<unk>":
-            decode_status = "unk"
-            unk_chunk_count += 1
-
-        segments.append(
-            {
-                "segment_id": len(segments) + 1,
-                "start": format_timestamp(start_sample / STAGE1_TRANSCRIPT_SAMPLE_RATE),
-                "end": format_timestamp(end_sample / STAGE1_TRANSCRIPT_SAMPLE_RATE),
-                "text": text,
-                "decode_status": decode_status,
-            }
+        should_flush = (
+            len(pending_batch) >= batch_size
+            or end_sample >= len(audio)
         )
-        if progress_callback is not None:
-            progress_callback(len(segments), chunk_count, end_sample / STAGE1_TRANSCRIPT_SAMPLE_RATE)
+        if should_flush and pending_batch:
+            batch_audio = [chunk_audio for _, _, chunk_audio in pending_batch]
+            batch_results = asr_pipeline(batch_audio, batch_size=batch_size)
+            if isinstance(batch_results, dict):
+                batch_results = [batch_results]
+            for (chunk_start, chunk_end, _), result in zip(pending_batch, batch_results, strict=False):
+                raw_text = str(result.get("text", "")).strip()
+                text = normalize_text(raw_text)
+                decode_status = "ok"
+                if not text:
+                    decode_status = "empty"
+                    empty_chunk_count += 1
+                elif text == "<unk>":
+                    decode_status = "unk"
+                    unk_chunk_count += 1
+
+                segments.append(
+                    {
+                        "segment_id": len(segments) + 1,
+                        "start": format_timestamp(chunk_start / STAGE1_TRANSCRIPT_SAMPLE_RATE),
+                        "end": format_timestamp(chunk_end / STAGE1_TRANSCRIPT_SAMPLE_RATE),
+                        "text": text,
+                        "decode_status": decode_status,
+                    }
+                )
+                if progress_callback is not None:
+                    progress_callback(len(segments), chunk_count, chunk_end / STAGE1_TRANSCRIPT_SAMPLE_RATE)
+            pending_batch = []
+
         if end_sample >= len(audio):
             break
         start_sample += stride_samples
@@ -413,6 +460,7 @@ def transcribe_with_parakeet(
         "version": package_version("transformers"),
         "language": language,
         "chunk_length_s": chunk_length_s,
+        "batch_size": batch_size,
         "overlap_stride_s": overlap_stride_s,
         "timestamp_mode": "chunk",
         "notes": notes,
@@ -705,6 +753,7 @@ def execute_stage1(
     beam_size: int = 5,
     vad_filter: bool = True,
     parakeet_chunk_length_s: int = 15,
+    parakeet_batch_size: int = 1,
     parakeet_overlap_stride_s: Optional[float] = None,
     parakeet_model_dir: Path = DEFAULT_PARAKEET_MODEL_DIR,
     console: Optional[Console] = None,
@@ -754,6 +803,19 @@ def execute_stage1(
             allow_download=not local_files_only,
         )
         notes.append(f"Using local Parakeet model files from {repo_relative(parakeet_local_model_dir)}.")
+    shared_parakeet_pipeline: Any = None
+    if resolved_backend == "parakeet":
+        if console is not None:
+            with console.status(f"Loading {resolved_backend}:{resolved_model_name} once for this session..."):
+                _, shared_parakeet_pipeline = build_parakeet_pipeline(
+                    model_dir=parakeet_local_model_dir or DEFAULT_PARAKEET_MODEL_DIR,
+                    device=device,
+                )
+        else:
+            _, shared_parakeet_pipeline = build_parakeet_pipeline(
+                model_dir=parakeet_local_model_dir or DEFAULT_PARAKEET_MODEL_DIR,
+                device=device,
+            )
 
     processed_session_seconds = 0.0
     stage_started_at = time.perf_counter()
@@ -889,6 +951,18 @@ def execute_stage1(
                     model_dir=parakeet_local_model_dir or DEFAULT_PARAKEET_MODEL_DIR,
                     device=device,
                     chunk_length_s=parakeet_chunk_length_s,
+                    batch_size=parakeet_batch_size,
+                    overlap_stride_s=parakeet_overlap_stride_s,
+                    progress_callback=report_progress,
+                ) if shared_parakeet_pipeline is None else transcribe_with_parakeet_pipeline(
+                    audio=audio,
+                    language=manifest.language,
+                    model_name=resolved_model_name,
+                    model_dir=parakeet_local_model_dir or DEFAULT_PARAKEET_MODEL_DIR,
+                    device=device,
+                    chunk_length_s=parakeet_chunk_length_s,
+                    asr_pipeline=shared_parakeet_pipeline,
+                    batch_size=parakeet_batch_size,
                     overlap_stride_s=parakeet_overlap_stride_s,
                     progress_callback=report_progress,
                 )

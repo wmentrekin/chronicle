@@ -113,5 +113,6 @@ uv run chronicle run <session_id>
 - Chronicle now prefers a managed local Parakeet model directory under `models/parakeet-ctc-0.6b/` rather than treating the Hugging Face cache as the primary runtime contract.
 - Stage 1 Parakeet runs now expose a single session-level progress bar with chunk counts, throughput, and ETA.
 - The current default Parakeet chunk length is `15s`.
+- The current default Parakeet batch size is `4`.
 - Chronicle also exposes an experimental overlap mode that uses `15s` windows with half-window stride. It is slower and currently emits overlapping chunks without a reconciliation pass.
 - The current Stage 2 implementation is local heuristic diarization over the Stage 1 transcript. It does not do audio speaker embedding or acoustic diarization.

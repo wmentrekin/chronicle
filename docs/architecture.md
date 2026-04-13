@@ -140,8 +140,10 @@ Current local Parakeet path:
 - fixed-size chunking
 - chunk-level timestamps
 - explicit local model path management instead of treating the generic Hugging Face cache as the primary runtime contract
+- one Parakeet pipeline load per Stage 1 run, reused across all source audio files in that session
 - one overall session progress bar with current file, chunk counts, throughput, elapsed time, and ETA
 - current default chunk length: `15s`
+- current default batch size: `4`
 - experimental overlap mode: `15s` windows with `7.5s` stride
 
 Current Stage 1 benchmark path:
@@ -165,15 +167,18 @@ Current optimization findings from profiling:
   - decode: about `6.6s`
   - model init: about `13.3s`
   - chunk inference: about `128s`
+- batching multiple `15s` chunks per pipeline call helps on CPU
+- representative follow-up comparison:
+  - `batch_size=1`: about `152.5s` on a 10-minute sample
+  - `batch_size=4`: about `136.7s` on the same sample
 - the current multiprocessing concurrency experiments are slower than the serial baseline on this machine
 - the main reason is not worker startup alone; it is that concurrent CPU inference with multiple full Parakeet worker processes becomes inefficient
 - practical recommendation today:
   - keep Stage 1 serial
   - keep `15s` as the default chunk size
+  - keep `batch_size=4` as the default Parakeet batch size
   - do not promote current multiprocessing concurrency into the main `transcribe` path
 - better optimization directions:
-  - reduce cost per inference call in the serial path
-  - reduce the number of inference calls without triggering `<unk>` degradation
   - profile or replace the current `transformers` CPU inference runtime before revisiting worker-based concurrency
 
 Important boundaries:
