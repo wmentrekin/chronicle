@@ -1,0 +1,23 @@
+session_id: example-session
+title: Example oral-history interview
+interview_date: null
+audio_files:
+  - audio/example_interview_part1.m4a
+participants:
+  - Interviewer Example
+  - Primary Narrator Example
+  - Secondary Narrator Example
+primary_interviewees:
+  - Primary Narrator Example
+  - Secondary Narrator Example
+people_likely_discussed:
+  - Parent Example
+  - Grandparent Example
+context_doc: context.md
+language: en
+notes: >
+  Example scaffold manifest for a multi-speaker oral-history session.
+stage1_model_preference: parakeet
+tags:
+  - example
+  - oral-history

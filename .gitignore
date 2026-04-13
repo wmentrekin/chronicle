@@ -1,0 +1,16 @@
+.DS_Store
+inputs/
+!examples/
+!examples/inputs/
+!examples/inputs/**
+outputs/
+.venv/
+.venv-transcribe/
+.conda-parakeet/
+.cache/
+models/
+__pycache__/
+*.py[cod]
+agent-context/
+AGENTS.md
+examples/outputs/

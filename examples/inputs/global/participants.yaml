@@ -1,0 +1,35 @@
+participants:
+  - canonical_name: Interviewer Example
+    short_name: Interviewer
+    roles:
+      - interviewer
+    living: true
+    notes: Example interviewer scaffold entry.
+
+  - canonical_name: Primary Narrator Example
+    short_name: Narrator
+    roles:
+      - interviewee
+    living: true
+    notes: Example interviewee scaffold entry.
+
+  - canonical_name: Secondary Narrator Example
+    short_name: Secondary Narrator
+    roles:
+      - interviewee
+    living: true
+    notes: Optional second speaker scaffold entry.
+
+  - canonical_name: Parent Example
+    short_name: Parent Example
+    roles:
+      - family_reference
+    living: false
+    notes: Example related person who may be mentioned in the interview.
+
+  - canonical_name: Grandparent Example
+    short_name: Grandparent Example
+    roles:
+      - family_reference
+    living: false
+    notes: Example older-generation person who may be mentioned in the interview.

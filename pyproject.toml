@@ -1,0 +1,41 @@
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "family-oral-history-pipeline"
+version = "0.1.0"
+description = "Private family oral-history pipeline for transcription, diarization, and chronology extraction."
+readme = "README.md"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+  "numpy<2",
+  "PyYAML>=6.0",
+  "rich>=14.0.0",
+  "typer>=0.23.0",
+]
+
+[project.scripts]
+chronicle = "chronicle.cli:main"
+
+[dependency-groups]
+stage1-faster-whisper = [
+  "faster-whisper>=1.1.0",
+  "imageio-ffmpeg>=0.6.0",
+]
+stage1-parakeet = [
+  "imageio-ffmpeg>=0.6.0",
+  "librosa>=0.11.0",
+  "llvmlite==0.43.0",
+  "numba==0.60.0",
+  "sentencepiece>=0.2.0",
+  "torch==2.2.2",
+  "transformers==4.57.1",
+]
+
+[tool.uv]
+package = true
+default-groups = []
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/chronicle"]
