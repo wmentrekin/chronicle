@@ -80,7 +80,11 @@ uv sync --group stage1-faster-whisper
 
 ## CLI architecture
 
-The CLI entrypoint lives in `src/chronicle/cli.py`.
+The CLI entrypoint now lives in the `src/chronicle/cli/` package, with command registration in `src/chronicle/cli/app.py`.
+
+Chronicle intentionally prefers smaller modules split by responsibility over a few very large files.
+From a code-organization standpoint, it is better for this repository to have more focused files than to let stage logic accumulate into monolithic `service.py` modules.
+The goal is to keep behavior easier to inspect, change, test, and document locally.
 
 The code is split by responsibility:
 - `src/chronicle/paths.py`
@@ -97,6 +101,12 @@ The code is split by responsibility:
   - shared serialization and run metadata helpers
 
 This split is intentional. Path changes, validation changes, and stage changes can now be made more locally.
+
+Detailed walkthroughs:
+- `docs/cli-architecture.md`
+- `docs/stage1-architecture.md`
+- `docs/stage2-architecture.md`
+- `docs/stage3-architecture.md`
 
 ## Input contract
 
