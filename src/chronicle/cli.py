@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -52,6 +53,58 @@ models_app = typer.Typer(add_completion=False, help="Manage local model files.")
 app.add_typer(models_app, name="models")
 
 
+def confirm_overwrite_if_needed(
+    *,
+    stage_label: str,
+    force: bool,
+    output_paths: list[Path],
+) -> bool:
+    existing_paths = [path for path in output_paths if path.exists()]
+    if force or not existing_paths:
+        return force
+
+    if not sys.stdin.isatty():
+        console.print(
+            Panel(
+                (
+                    f"{stage_label} artifacts already exist and this shell is non-interactive. "
+                    "Skipping overwrite. Rerun with `--force` to overwrite them explicitly."
+                ),
+                title=f"{stage_label} Skip",
+            )
+        )
+        return False
+
+    overwrite = typer.confirm(
+        (
+            f"{stage_label} artifacts already exist for this session.\n"
+            f"Overwrite {len(existing_paths)} existing file(s)?"
+        ),
+        default=False,
+    )
+    if not overwrite:
+        console.print(
+            Panel(
+                "Keeping existing artifacts unchanged.",
+                title=f"{stage_label} Skip",
+            )
+        )
+    return overwrite
+
+
+def install_chronicle_link(link_path: Path) -> Path:
+    chronicle_executable = Path(sys.executable).resolve().parent / "chronicle"
+    if not chronicle_executable.exists():
+        raise StageExecutionError(
+            f"Could not find the Chronicle executable beside the current Python interpreter at {chronicle_executable}."
+        )
+    link_path.parent.mkdir(parents=True, exist_ok=True)
+    if link_path.exists() or link_path.is_symlink():
+        link_path.unlink()
+    link_path.symlink_to(chronicle_executable)
+    return link_path
+
+
 def render_stage_plan(
     manifest: SessionManifest, stage_name: str, directories: dict[str, Path]
 ) -> None:
@@ -83,6 +136,80 @@ def render_stage_plan(
             ", ".join(path.name for path in planned_stage3_artifacts(manifest, directories["stage3"])),
         )
     console.print(table)
+
+
+@app.command("init")
+def init_command(
+    model_name: str = typer.Option(
+        DEFAULT_STAGE1_PARAKEET_MODEL,
+        "--model",
+        help="Remote Hugging Face model id to fetch into Chronicle-managed storage.",
+    ),
+    parakeet_model_dir: Path = typer.Option(
+        DEFAULT_PARAKEET_MODEL_DIR,
+        "--parakeet-model-dir",
+        file_okay=False,
+        dir_okay=True,
+        help="Chronicle-managed local directory for Parakeet model files.",
+    ),
+    skip_model_download: bool = typer.Option(
+        False,
+        "--skip-model-download",
+        help="Skip fetching the managed local Parakeet model and only validate the local runtime.",
+    ),
+    install_link: bool = typer.Option(
+        False,
+        "--install-link",
+        help="Install/update a stable user-level `chronicle` symlink.",
+    ),
+    link_path: Path = typer.Option(
+        Path.home() / ".local" / "bin" / "chronicle",
+        "--link-path",
+        file_okay=True,
+        dir_okay=False,
+        help="Destination path for the installed Chronicle symlink.",
+    ),
+) -> None:
+    """Initialize Chronicle's default local runtime."""
+    if not skip_model_download:
+        try:
+            resolved = ensure_local_parakeet_model(
+                model_name=model_name,
+                model_dir=parakeet_model_dir,
+                allow_download=True,
+            )
+        except StageExecutionError as exc:
+            console.print(Panel(str(exc), title="Initialization Failed", style="red"))
+            raise typer.Exit(code=1) from exc
+        console.print(
+            Panel(
+                f"Parakeet model files are available at `{repo_relative(resolved)}`.",
+                title="Model Ready",
+            )
+        )
+
+    if install_link:
+        try:
+            installed_link = install_chronicle_link(link_path)
+        except StageExecutionError as exc:
+            console.print(Panel(str(exc), title="Link Install Failed", style="red"))
+            raise typer.Exit(code=1) from exc
+        console.print(
+            Panel(
+                (
+                    f"Installed `chronicle` symlink at `{installed_link.as_posix()}`.\n"
+                    "Ensure the parent directory is on your PATH."
+                ),
+                title="Link Ready",
+            )
+        )
+
+    console.print(
+        Panel(
+            "Chronicle is ready. Use `chronicle transcribe <session_id>` for Stage 1.",
+            title="Initialization Complete",
+        )
+    )
 
 
 @app.command("validate")
@@ -119,7 +246,7 @@ def transcribe_command(
     backend: str = typer.Option(
         DEFAULT_STAGE1_BACKEND,
         "--backend",
-        help="Stage 1 backend: auto, faster-whisper, or parakeet.",
+        help="Stage 1 backend: parakeet, faster-whisper, or auto.",
     ),
     model_name: Optional[str] = typer.Option(None, "--model", help="Override the backend-specific model name."),
     force: bool = typer.Option(False, "--force", help="Overwrite existing stage 1 artifacts."),
@@ -179,6 +306,14 @@ def transcribe_command(
 
     directories = ensure_output_dirs(manifest.session_id)
     render_stage_plan(manifest, "stage1", directories)
+    force = confirm_overwrite_if_needed(
+        stage_label="Stage 1",
+        force=force,
+        output_paths=[
+            directories["stage1"] / "raw_transcript.json",
+            directories["stage1"] / "raw_transcript.md",
+        ],
+    )
 
     started_at = datetime.now(timezone.utc)
     run_notes: list[str] = []
@@ -535,6 +670,14 @@ def diarize_command(
 
     directories = ensure_output_dirs(manifest.session_id)
     render_stage_plan(manifest, "stage2", directories)
+    force = confirm_overwrite_if_needed(
+        stage_label="Stage 2",
+        force=force,
+        output_paths=[
+            directories["stage2"] / "diarized_conversation.json",
+            directories["stage2"] / "diarized_conversation.md",
+        ],
+    )
 
     started_at = datetime.now(timezone.utc)
     run_notes: list[str] = []

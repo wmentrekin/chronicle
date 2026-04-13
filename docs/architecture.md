@@ -56,20 +56,26 @@ Chronicle is a packaged Python CLI managed with `uv`.
 Current operator flow:
 
 ```bash
-uv sync
-uv run chronicle validate <session_id>
-uv run chronicle models fetch parakeet
-uv run chronicle transcribe <session_id>
-uv run chronicle benchmark-stage1 <session_id>
-uv run chronicle diarize <session_id>
-uv run chronicle chronology <session_id>
+./bin/bootstrap
+chronicle validate <session_id>
+chronicle transcribe <session_id>
+chronicle benchmark-stage1 <session_id>
+chronicle diarize <session_id>
+chronicle chronology <session_id>
 ```
 
-Optional Stage 1 backend groups:
+Manual bootstrap remains available:
+
+```bash
+uv sync
+source .envrc
+chronicle init
+```
+
+Optional alternate Stage 1 backend group:
 
 ```bash
 uv sync --group stage1-faster-whisper
-uv sync --group stage1-parakeet
 ```
 
 ## CLI architecture

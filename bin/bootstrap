@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
+
+INSTALL_LINK=0
+SKIP_MODEL_DOWNLOAD=0
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --install-link)
+      INSTALL_LINK=1
+      shift
+      ;;
+    --skip-model-download)
+      SKIP_MODEL_DOWNLOAD=1
+      shift
+      ;;
+    -h|--help)
+      cat <<'EOF'
+Usage: ./bin/bootstrap [--install-link] [--skip-model-download]
+
+Bootstraps Chronicle in a fresh clone:
+  1. creates/syncs the project environment with uv
+  2. initializes the managed local Parakeet model
+  3. optionally installs a stable user-level chronicle symlink
+
+Options:
+  --install-link        Install/update ~/.local/bin/chronicle -> .venv/bin/chronicle
+  --skip-model-download Skip `chronicle init` model download
+EOF
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      exit 1
+      ;;
+  esac
+done
+
+if ! command -v uv >/dev/null 2>&1; then
+  echo "Error: uv is not installed or not on PATH." >&2
+  echo "Install uv first, then rerun ./bin/bootstrap." >&2
+  exit 1
+fi
+
+echo "==> Syncing Chronicle environment with uv"
+uv sync
+
+echo "==> Initializing Chronicle"
+if [[ "$SKIP_MODEL_DOWNLOAD" -eq 1 ]]; then
+  if [[ "$INSTALL_LINK" -eq 1 ]]; then
+    "$REPO_ROOT/.venv/bin/chronicle" init --skip-model-download --install-link
+  else
+    "$REPO_ROOT/.venv/bin/chronicle" init --skip-model-download
+  fi
+else
+  if [[ "$INSTALL_LINK" -eq 1 ]]; then
+    "$REPO_ROOT/.venv/bin/chronicle" init --install-link
+  else
+    "$REPO_ROOT/.venv/bin/chronicle" init
+  fi
+fi
+
+if command -v direnv >/dev/null 2>&1; then
+  echo "==> direnv detected"
+  echo "    Run: direnv allow"
+  echo "    After that, 'chronicle ...' will resolve automatically when you cd into this repo."
+else
+  cat <<EOF
+==> Next steps
+  Option 1: run 'source .envrc' in each new shell before using Chronicle from this repo.
+  Option 2: rerun './bin/bootstrap --install-link' to install a stable user-level chronicle command.
+  Option 3: install direnv and enable it in your shell for automatic repo-local PATH handling.
+EOF
+fi

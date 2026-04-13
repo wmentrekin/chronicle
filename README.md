@@ -40,17 +40,59 @@ Sanitized scaffolds for a public setup live under `examples/inputs/`.
 uv sync
 ```
 
-Optional Stage 1 backends:
+Preferred first-time bootstrap:
+
+```bash
+./bin/bootstrap
+```
+
+That:
+- runs `uv sync`
+- initializes Chronicle's managed local Parakeet model
+- leaves the repo ready for `chronicle ...` usage through either `direnv`, `.envrc`, or an optional user-level link
+
+If you want a stable `chronicle` command without sourcing `.envrc`, use:
+
+```bash
+./bin/bootstrap --install-link
+```
+
+That installs `~/.local/bin/chronicle` pointing at this repo's active Chronicle executable.
+
+You can also do that directly after setup:
+
+```bash
+chronicle init --install-link
+```
+
+To use repo-local PATH handling instead, load the repo shell settings manually:
+
+```bash
+source .envrc
+```
+
+That prepends `.venv/bin` to `PATH` and sets a repo-local `UV_CACHE_DIR`.
+
+Plain `uv sync` installs Chronicle's default Stage 1 runtime, which is Parakeet.
+
+Optional alternate Stage 1 backend:
 
 ```bash
 uv sync --group stage1-faster-whisper
-uv sync --group stage1-parakeet
 ```
 
-Fetch the local Parakeet model into Chronicle-managed storage:
+Initialize Chronicle's managed local Parakeet model:
 
 ```bash
-uv run chronicle models fetch parakeet
+chronicle init
+```
+
+Manual first-time bootstrap, from a fresh clone:
+
+```bash
+uv sync
+source .envrc
+chronicle init
 ```
 
 ## CLI
@@ -58,49 +100,49 @@ uv run chronicle models fetch parakeet
 Validate a session:
 
 ```bash
-uv run chronicle validate <session_id>
+chronicle validate <session_id>
 ```
 
 Run Stage 1:
 
 ```bash
-uv run chronicle transcribe <session_id>
+chronicle transcribe <session_id>
 ```
 
 Run Stage 1 with experimental overlap mode:
 
 ```bash
-uv run chronicle transcribe <session_id> --experimental-overlap
+chronicle transcribe <session_id> --experimental-overlap
 ```
 
 Benchmark Stage 1 chunk sizes across evenly spaced subsamples:
 
 ```bash
-uv run chronicle benchmark-stage1 <session_id>
+chronicle benchmark-stage1 <session_id>
 ```
 
 Benchmark experimental Stage 1 concurrency with partitioned worker processes:
 
 ```bash
-uv run chronicle benchmark-stage1-concurrency <session_id>
+chronicle benchmark-stage1-concurrency <session_id>
 ```
 
 Run Stage 2:
 
 ```bash
-uv run chronicle diarize <session_id>
+chronicle diarize <session_id>
 ```
 
 Prepare Stage 3:
 
 ```bash
-uv run chronicle chronology <session_id>
+chronicle chronology <session_id>
 ```
 
 Show current pipeline status for a session:
 
 ```bash
-uv run chronicle run <session_id>
+chronicle run <session_id>
 ```
 
 ## Notes
@@ -111,6 +153,7 @@ uv run chronicle run <session_id>
 - Public users should start from the sanitized scaffolds under `examples/inputs/` and create their own local `inputs/` tree from those templates.
 - Stage 1 writes one session-level transcript artifact per session, even when the session contains multiple audio files.
 - Chronicle now prefers a managed local Parakeet model directory under `models/parakeet-ctc-0.6b/` rather than treating the Hugging Face cache as the primary runtime contract.
+- The default Stage 1 backend is Parakeet when the runtime and local model are available.
 - Stage 1 Parakeet runs now expose a single session-level progress bar with chunk counts, throughput, and ETA.
 - The current default Parakeet chunk length is `15s`.
 - The current default Parakeet batch size is `4`.

@@ -35,7 +35,7 @@ stage1-parakeet = [
 
 [tool.uv]
 package = true
-default-groups = []
+default-groups = ["stage1-parakeet"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/chronicle"]

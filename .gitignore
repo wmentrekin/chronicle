@@ -1,4 +1,6 @@
 .DS_Store
+.env
+.envrc
 inputs/
 !examples/
 !examples/inputs/
