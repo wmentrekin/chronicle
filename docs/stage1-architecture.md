@@ -12,6 +12,7 @@ Stage 1 takes one session manifest plus one or more raw audio files and produces
 
 Stage 1 does not identify speakers.
 It is a speech-to-text stage only.
+Its outputs are meant to be reconciled later with anonymous diarization in Stage 2 and real-person identification in Stage 3.
 
 ## Stage 1 module layout
 

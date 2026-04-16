@@ -76,22 +76,32 @@ This is the operator-facing wrapper around Stage 1 benchmark functions.
 ### `src/chronicle/cli/stage2.py`
 
 Purpose:
-- implement `chronicle diarize <session_id>`
+- currently implement `chronicle diarize <session_id>`
 
-This module mirrors `stage1.py`:
+Current state:
 - validate
 - render plan
 - prompt on overwrite
 - call `execute_stage2(...)`
 - write run metadata
 
+Migration direction:
+- this module should keep owning `chronicle diarize <session_id>`
+- but the implementation behind it should be replaced with anonymous audio diarization rather than the current text-first speaker assignment logic
+
 ### `src/chronicle/cli/stage3.py`
 
 Purpose:
-- implement `chronicle chronology <session_id>`
-- implement `chronicle run <session_id>`
+- currently implement `chronicle chronology <session_id>`
+- currently implement `chronicle run <session_id>`
 
-Right now Stage 3 is still scaffolded, so this module is lightweight.
+Current state:
+- this module is still lightweight because current Stage 3 is only a scaffold
+
+Migration direction:
+- Stage 3 should become the speaker-identification layer
+- this module should eventually own something closer to `chronicle identify <session_id>`
+- current chronology scaffolding should move forward into a Stage 4 command module
 
 ## How the CLI relates to the rest of the package
 
@@ -109,6 +119,7 @@ That logic belongs in:
 - `src/chronicle/stage1/`
 - `src/chronicle/stage2/`
 - later `src/chronicle/stage3/`
+- later `src/chronicle/stage4/`
 
 ## What happens when someone runs `chronicle transcribe`
 
@@ -127,3 +138,15 @@ High-level flow:
 
 The CLI command does not directly decode audio, load Parakeet, or build transcript artifacts.
 It delegates those responsibilities to the Stage 1 package.
+
+## Current mismatch worth knowing
+
+Chronicle is in a transition period:
+- the documented target model is now 4 stages
+- the current CLI code still reflects the older 3-stage numbering
+
+That means:
+- `chronicle diarize` currently runs what should become future Stage 3-style identification logic
+- `chronicle chronology` currently points to what should become future Stage 4 organization logic
+
+The first implementation step after this documentation update should be to realign the CLI module layout with the new stage boundaries before the new acoustic Stage 2 is built.

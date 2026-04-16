@@ -1,18 +1,18 @@
 # Pipeline Architecture
 
-Status: current
+Status: current design direction
 
 ## Purpose
 
 Chronicle is a local-first, multi-stage agentic audio-processing workflow. It takes one session input bundle, runs staged CLI processing, and writes reviewable outputs without losing provenance.
 
-The current implemented path is:
-1. validate a session bundle
-2. run Stage 1 transcription
-3. run Stage 2 semantic diarization
-4. prepare for Stage 3 chronology extraction
+The intended architecture is now:
+1. Stage 1 transcription
+2. Stage 2 audio diarization
+3. Stage 3 speaker identification
+4. Stage 4 verbatim organization
 
-Stage 3 is still a scaffold. Narrative synthesis is not implemented in this repository.
+This is a change from the earlier 3-stage model. The old transcript-driven heuristic "semantic diarization" step is being reclassified as speaker identification logic and should move out of `stage2/` into a future `stage3/` implementation area.
 
 ## Current repository structure
 
@@ -35,15 +35,23 @@ models/
   parakeet-ctc-0.6b/
 src/
   chronicle/
-    cli.py
+    cli/
     session.py
     paths.py
     utils.py
     stage1/
     stage2/
     stage3/
+    stage4/
 docs/
   architecture.md
+  cli-architecture.md
+  stage1-architecture.md
+  stage2-architecture.md
+  stage3-architecture.md
+  stage4-architecture.md
+agent-context/
+  ...
 ```
 
 `inputs/` and `outputs/` are intentionally treated as private working data and are gitignored.
@@ -57,56 +65,35 @@ Current operator flow:
 
 ```bash
 ./bin/bootstrap
+chronicle init
 chronicle validate <session_id>
 chronicle transcribe <session_id>
-chronicle benchmark-stage1 <session_id>
 chronicle diarize <session_id>
-chronicle chronology <session_id>
+chronicle identify <session_id>
+chronicle organize <session_id>
 ```
 
-Manual bootstrap remains available:
+Current code is not fully aligned with that command surface yet. Today:
+- `transcribe` is real Stage 1
+- `diarize` still runs the old heuristic text-first logic
+- `chronology` is still scaffold-only
 
-```bash
-uv sync
-source .envrc
-chronicle init
-```
-
-Optional alternate Stage 1 backend group:
-
-```bash
-uv sync --group stage1-faster-whisper
-```
+So the public architecture target and the current code state are temporarily different. The first implementation step is to reconcile them.
 
 ## CLI architecture
 
-The CLI entrypoint now lives in the `src/chronicle/cli/` package, with command registration in `src/chronicle/cli/app.py`.
+The CLI entrypoint lives in the `src/chronicle/cli/` package, with command registration in `src/chronicle/cli/app.py`.
 
 Chronicle intentionally prefers smaller modules split by responsibility over a few very large files.
 From a code-organization standpoint, it is better for this repository to have more focused files than to let stage logic accumulate into monolithic `service.py` modules.
 The goal is to keep behavior easier to inspect, change, test, and document locally.
-
-The code is split by responsibility:
-- `src/chronicle/paths.py`
-  - canonical repo paths and output directory creation
-- `src/chronicle/session.py`
-  - session manifest parsing and validation
-- `src/chronicle/stage1/service.py`
-  - audio decode and transcription backends
-- `src/chronicle/stage2/service.py`
-  - semantic diarization heuristics
-- `src/chronicle/stage3/service.py`
-  - Stage 3 planning helpers
-- `src/chronicle/utils.py`
-  - shared serialization and run metadata helpers
-
-This split is intentional. Path changes, validation changes, and stage changes can now be made more locally.
 
 Detailed walkthroughs:
 - `docs/cli-architecture.md`
 - `docs/stage1-architecture.md`
 - `docs/stage2-architecture.md`
 - `docs/stage3-architecture.md`
+- `docs/stage4-architecture.md`
 
 ## Input contract
 
@@ -121,25 +108,29 @@ The current manifest contract is:
 - `context_doc` is relative to the session folder
 - names in `participants`, `primary_interviewees`, and `people_likely_discussed` must match canonical names in `participants.yaml`
 
-## Output contract
+## Target output contract
 
 Each session writes to `outputs/<session_id>/`.
 
-Current layout:
+Target layout:
 - `outputs/<session_id>/stage1/`
-  - session-level raw transcript JSON
-  - session-level raw transcript markdown
+  - session-level raw transcript JSON and markdown
 - `outputs/<session_id>/stage2/`
-  - diarized conversation JSON
-  - diarized conversation markdown
+  - anonymous diarization JSON and markdown
 - `outputs/<session_id>/stage3/`
-  - reserved for chronology outputs
+  - identified speaker transcript JSON and markdown
+- `outputs/<session_id>/stage4/`
+  - organized verbatim chronology/theme artifacts
 - `outputs/<session_id>/runs/`
   - stage run metadata JSON files
 
-The rule is simple: each stage writes a new artifact. Stages do not silently mutate previous-stage semantics.
+Current code only implements `stage1/` and the older `stage2/` shape. The rest of the directory contract is part of the migration plan.
+
+## Stage boundaries
 
 ## Stage 1 architecture
+
+Stage 1 is speech-to-text only.
 
 Current implementation:
 - decode session audio to mono 16 kHz using `imageio-ffmpeg`
@@ -147,141 +138,143 @@ Current implementation:
 - prefer Chronicle-managed local Parakeet model files under `models/parakeet-ctc-0.6b/`
 - write one combined transcript artifact per session, ordered sequentially across source audio files
 
-Current backends:
-- `faster-whisper`
-- `parakeet`
-
 Current local Parakeet path:
 - local `transformers` ASR pipeline
 - fixed-size chunking
 - chunk-level timestamps
-- explicit local model path management instead of treating the generic Hugging Face cache as the primary runtime contract
 - one Parakeet pipeline load per Stage 1 run, reused across all source audio files in that session
 - one overall session progress bar with current file, chunk counts, throughput, elapsed time, and ETA
 - current default chunk length: `15s`
 - current default batch size: `4`
-- experimental overlap mode: `15s` windows with `7.5s` stride
-
-Current Stage 1 benchmark path:
-- `uv run chronicle benchmark-stage1 <session_id>`
-- benchmarks evenly spaced subsamples across the full session
-- compares multiple chunk sizes on the same sampled audio windows
-- writes terminal output plus JSON results under `outputs/<session_id>/runs/`
-- experimental concurrency benchmark:
-  - `uv run chronicle benchmark-stage1-concurrency <session_id>`
-  - holds chunk size constant and varies worker process count over partitioned sample windows
-  - intended to validate speedup before changing the main transcribe path
-
-Current benchmark findings on the sample session:
-- `15s` is the best current default tradeoff on local CPU
-- `10s` and `20s` were faster than smaller chunks in some tests but degraded into `<unk>` output on the sampled windows
-- `15s` overlap mode with `7.5s` stride preserves alternate boundary readings but is slower and currently requires a future reconciliation/stitching pass to be useful as a primary artifact
-
-Current optimization findings from profiling:
-- the serial `15s` path is dominated by chunk inference time, not setup time
-- representative 10-minute serial profile:
-  - decode: about `6.6s`
-  - model init: about `13.3s`
-  - chunk inference: about `128s`
-- batching multiple `15s` chunks per pipeline call helps on CPU
-- representative follow-up comparison:
-  - `batch_size=1`: about `152.5s` on a 10-minute sample
-  - `batch_size=4`: about `136.7s` on the same sample
-- the current multiprocessing concurrency experiments are slower than the serial baseline on this machine
-- the main reason is not worker startup alone; it is that concurrent CPU inference with multiple full Parakeet worker processes becomes inefficient
-- practical recommendation today:
-  - keep Stage 1 serial
-  - keep `15s` as the default chunk size
-  - keep `batch_size=4` as the default Parakeet batch size
-  - do not promote current multiprocessing concurrency into the main `transcribe` path
-- better optimization directions:
-  - profile or replace the current `transformers` CPU inference runtime before revisiting worker-based concurrency
 
 Important boundaries:
 - Stage 1 does not assign speakers
 - Stage 1 does not use contextual metadata to alter wording
-- Stage 1 preserves decode uncertainty with explicit markers like empty chunks or `<unk>`
 - Stage 1 preserves source-audio provenance inside the combined session artifact
 
 ## Stage 2 architecture
 
-Current Stage 2 is semantic diarization, not acoustic diarization.
+Stage 2 should become anonymous audio diarization.
 
-Inputs:
-- Stage 1 transcript JSON
-- `session.yaml`
-- `context.md`
-- `inputs/global/participants.yaml`
+Target purpose:
+- separate waveform turns into anonymous speaker tracks such as `SPEAKER_00`, `SPEAKER_01`
+- support `n` speakers up to a reasonable local-machine limit
+- stay general and not depend on biography-heavy context
 
-Current process:
-1. load Stage 1 transcript segments
-2. derive alias data from `participants.yaml`
-3. extract clue tokens from the background section of `context.md`
-4. classify transcript segments as likely question, acknowledgment, or response
-5. merge adjacent segments into larger speaking blocks
-6. score question targets and response candidates against session clues
-7. assign speakers conservatively
-8. write JSON and markdown outputs with confidence labels and notes
+Target inputs:
+- raw session audio
+- optional min/max/expected speaker count
+- optional session-level diarization constraints
 
-Outputs:
-- `diarized_conversation.json`
-- `diarized_conversation.md`
+Target outputs:
+- speaker turns with anonymous labels
+- start/end timestamps
+- overlap or uncertainty flags where available
 
-Important boundaries:
-- no API calls are used in current Stage 2
-- no LLM calls are used in current Stage 2
-- no speaker embeddings or acoustic diarization are used
-- uncertainty is preserved instead of forced into a single speaker label
+Important boundary:
+- Stage 2 should answer "who spoke when" in anonymous speaker-cluster terms, not "which known person was that"
 
 ## Stage 3 architecture
 
-Stage 3 is not implemented yet.
+Stage 3 should become speaker identification and transcript reconciliation.
 
-Current state:
-- the CLI validates the session
-- it prepares `outputs/<session_id>/stage3/`
-- it shows the planned artifact names for each primary interviewee
+Target purpose:
+- combine Stage 1 transcript words with Stage 2 anonymous diarization turns
+- use participants metadata and session context to map anonymous speakers to canonical people
+- preserve uncertainty when mapping is weak
 
-Target direction:
-- one chronology artifact per interviewee per session
-- verbatim excerpts grouped by theme and approximate life period
-- references back to transcript provenance
+Target inputs:
+- Stage 1 transcript artifact
+- Stage 2 diarization artifact
+- `inputs/global/participants.yaml`
+- session `context.md`
 
-## Current workflow
+Expected implementation direction:
+- likely LLM-assisted
+- structured outputs
+- conservative identity assignment
 
-To add a new interview:
-1. create `inputs/sessions/<session_id>/`
-2. place the raw audio under `audio/`
-3. add `session.yaml`
-4. add `context.md`
-5. update `inputs/global/participants.yaml` if needed
-6. run `uv sync`
-7. run `uv run chronicle validate <session_id>`
-8. run Stage 1 and Stage 2 explicitly
+Important boundary:
+- Stage 3 should not do raw acoustic diarization
+- Stage 3 should not rewrite the speaker's wording
 
-## Current design tradeoffs
+## Stage 4 architecture
 
-Why this structure is cleaner than the old one:
-- inputs and outputs are separated
-- session-local input context is separated from derived artifacts
-- the CLI resolves sessions by `session_id` instead of file paths
-- stage code is no longer trapped inside one large script
-- future public release work is simpler because private data sits under gitignored roots
+Stage 4 should become verbatim organization.
 
-Known limits:
-- Stage 1 Parakeet quality still needs review
-- Stage 2 remains heuristic and transcript-driven
-- Stage 3 is still pending
+Target purpose:
+- reorganize identified conversation content into reviewable, narrative-ready source documents
+- preserve verbatim excerpts while grouping by theme and approximate chronology
 
-## Next architectural steps
+Target inputs:
+- Stage 3 identified transcript artifact
 
-Near-term:
-1. tighten Stage 1 quality and local runtime behavior
-2. refine Stage 2 heuristics and context extraction
-3. implement Stage 3 chronology extraction
-4. add tests around validation and stage artifact contracts
+Target outputs:
+- one organized artifact per primary interviewee per session
+- chronology/theme groupings
+- explicit uncertainty and provenance references
 
-Later:
-1. add sanitized examples for public sharing
-2. decide whether any stage should use controlled LLM assistance
-3. add a narrative drafting layer only after earlier artifacts are stable
+## Current code state vs target architecture
+
+Current code still reflects the older 3-stage model:
+- `src/chronicle/stage1/` is real transcription code
+- `src/chronicle/stage2/` contains text-first heuristic speaker assignment logic
+- `src/chronicle/stage3/` is only a chronology scaffold
+
+That means the current code-state mapping is:
+- old Stage 2 logic should become new Stage 3 logic
+- old Stage 3 planning should become new Stage 4 planning
+- new Stage 2 is not implemented yet
+
+This mismatch is intentional to surface now rather than hide.
+
+## Implementation plan
+
+### Step 1: migrate code and artifact naming to the new stage model
+
+Before building the new diarization stage, the repo should be realigned:
+- migrate current `src/chronicle/stage2/` logic into a new `src/chronicle/stage3/`
+- migrate current `src/chronicle/cli/stage2.py` behavior into a new Stage 3 command surface
+- move current `src/chronicle/stage3/` scaffold forward into Stage 4 planning/code locations
+- update stage directory expectations from the old `stage1/stage2/stage3` model to the new `stage1/stage2/stage3/stage4` model
+- keep artifact contracts explicit during migration rather than silently reusing old names
+
+This is the first implementation step because adding a new diarization Stage 2 on top of the old numbering would make the code and docs harder to reason about.
+
+### Step 2: research and choose a local Stage 2 diarization stack
+
+Once the numbering and code layout match the intended architecture:
+- evaluate local diarization options
+- compare local-machine feasibility
+- decide how to support optional speaker-count hints
+
+### Step 3: define the Stage 2 artifact contract
+
+Decide the machine and markdown outputs for:
+- anonymous speaker labels
+- timestamps
+- overlap handling
+- diarization confidence and notes
+
+### Step 4: redesign current heuristic logic as Stage 3 identification
+
+After Stage 2 exists:
+- redesign the current text-first heuristic logic as identity reconciliation
+- combine Stage 1 transcript text and Stage 2 anonymous speaker turns
+- likely replace or augment heuristics with an LLM-assisted identifier
+
+### Step 5: build Stage 4 organization on top of identified speakers
+
+Only after Stage 3 is stable:
+- implement organization by chronology and theme
+- preserve verbatim language and provenance
+
+## Current recommendation
+
+Do not invest further in the current heuristic text-only Stage 2 as the long-term diarization solution.
+
+The current best direction is:
+1. keep Stage 1 largely as-is
+2. add a true anonymous audio-diarization Stage 2
+3. move identity assignment into Stage 3
+4. keep Stage 4 focused on organization, not attribution

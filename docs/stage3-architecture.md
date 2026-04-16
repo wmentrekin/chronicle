@@ -1,51 +1,92 @@
 # Stage 3 Architecture
 
-This document explains the current state of Stage 3 in code.
+This document defines the intended architecture for Stage 3 after the stage-model reset.
 
-## Current state
+## Stage 3 goal
 
-Stage 3 is not implemented as a real transformation stage yet.
-It is currently a scaffold that defines planned output locations for chronology artifacts.
+Stage 3 should identify real people from the combination of:
+- Stage 1 transcript text
+- Stage 2 anonymous speaker turns
+- session context
+- participant metadata
 
-## Current Stage 3 module layout
+Stage 3 should answer:
+- is `SPEAKER_00` Bill, Pat, Wyatt, or still unknown?
 
-### `src/chronicle/stage3/service.py`
+It should not do raw acoustic diarization.
 
-Purpose:
-- expose `planned_stage3_artifacts(...)`
+## Why Stage 3 is changing
 
-That function takes:
-- a `SessionManifest`
-- a Stage 3 output directory
+The previous heuristic "semantic diarization" logic belongs more naturally here.
+It was trying to solve identity attribution from transcript text and metadata.
 
-and returns the planned chronology artifact paths, one per primary interviewee.
+That is a speaker-identification problem, not a raw diarization problem.
 
-## How Stage 3 is currently used
+## Target Stage 3 inputs
 
-The current Stage 3 CLI behavior lives in:
+Required:
+- Stage 1 transcript artifact
+- Stage 2 anonymous diarization artifact
+- `inputs/global/participants.yaml`
+- session `context.md`
 
-- `src/chronicle/cli/stage3.py`
+Likely useful:
+- structured per-speaker background cues
+- people likely discussed
+- likely ambiguities
 
-When someone runs:
+## Target Stage 3 outputs
 
-```bash
-chronicle chronology <session_id>
-```
+Machine artifact should include:
+- canonical speaker name when justified
+- anonymous speaker label provenance
+- confidence label
+- notes
+- references back to Stage 1 segment ids and Stage 2 turn ids
 
-the current flow is:
+Markdown companion should read like a speaker-attributed conversation while preserving uncertainty.
 
-1. validate the session
-2. create/resolve the Stage 3 output directory
-3. render the planned artifact paths
-4. tell the operator that Stage 3 is still scaffold-only
+## Expected implementation direction
 
-No chronology extraction is performed yet.
+Stage 3 is a good candidate for an LLM-assisted reconciliation step because it needs:
+- contextual reasoning
+- conservative mapping from anonymous voices to known people
+- explicit handling of ambiguity
 
-## Why this still has a separate module
+If an LLM is used, it should be structured and auditable:
+- small windows or grouped turns
+- explicit candidate participants
+- explicit uncertainty rules
+- machine-readable outputs
 
-Even though Stage 3 is minimal today, keeping it as an explicit module is useful because it:
-- defines the expected output naming pattern
-- keeps the CLI and future implementation aligned
-- preserves a stable place for Stage 3 growth later
+## Preferred module layout
 
-That is consistent with Chronicle's preference for explicit module boundaries instead of letting future code accrete into unrelated files.
+Target structure:
+- `src/chronicle/stage3/service.py`
+  - orchestration only
+- `src/chronicle/stage3/inputs.py`
+  - load Stage 1, Stage 2, and metadata/context
+- `src/chronicle/stage3/reconcile.py`
+  - identity assignment logic
+- `src/chronicle/stage3/artifacts.py`
+  - Stage 3 artifact writing
+- optionally `src/chronicle/stage3/llm.py` and `prompts.py`
+  - if the stage becomes LLM-assisted
+
+## Migration note
+
+The current `src/chronicle/stage2/` package is effectively the prototype for this stage.
+
+So the first code migration should be:
+- move current heuristic loading/segmentation/assignment/artifact code out of `stage2/`
+- rehouse it under `stage3/`
+- update CLI naming and output contracts to match
+
+That migration should happen before building the new anonymous audio-diarization Stage 2.
+
+## Relationship to Stage 2
+
+Stage 2 should stay general and anonymous.
+Stage 3 should absorb the biography-heavy context and identity reasoning.
+
+That separation keeps Stage 2 reusable for `n` speakers while keeping Stage 3 responsible for real-person mapping.
