@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import importlib.metadata
 import json
 import re
@@ -10,6 +11,25 @@ from pathlib import Path
 from typing import Any, Optional
 
 import yaml
+
+from .paths import REPO_ROOT
+
+
+def load_local_env(env_path: Path | None = None) -> None:
+    path = env_path or (REPO_ROOT / ".env")
+    if not path.exists():
+        return
+
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        if not key or key in os.environ:
+            continue
+        value = value.strip().strip("'").strip('"')
+        os.environ[key] = value
 
 
 def load_yaml(path: Path) -> Any:
@@ -72,4 +92,3 @@ def write_run_metadata(
     }
     write_json(run_path, payload)
     return run_path
-

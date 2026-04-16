@@ -32,6 +32,11 @@ stage1-parakeet = [
   "torch==2.2.2",
   "transformers==4.57.1",
 ]
+stage2-pyannote = [
+  "huggingface-hub<1",
+  "numpy<2",
+  "pyannote.audio>=3.3,<3.4",
+]
 
 [tool.uv]
 package = true
