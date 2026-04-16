@@ -75,10 +75,11 @@ chronicle organize <session_id>
 
 Current code is not fully aligned with that command surface yet. Today:
 - `transcribe` is real Stage 1
-- `diarize` still runs the old heuristic text-first logic
-- `chronology` is still scaffold-only
+- `diarize` is scaffold-only while the new Stage 2 is being designed
+- `identify` runs the migrated heuristic text-first logic under Stage 3
+- `organize` is scaffold-only
 
-So the public architecture target and the current code state are temporarily different. The first implementation step is to reconcile them.
+So the command surface is now aligned, but the implementation still needs a real Stage 2 behind it.
 
 ## CLI architecture
 
@@ -124,7 +125,11 @@ Target layout:
 - `outputs/<session_id>/runs/`
   - stage run metadata JSON files
 
-Current code only implements `stage1/` and the older `stage2/` shape. The rest of the directory contract is part of the migration plan.
+Current code implements:
+- `stage1/` transcription
+- `stage2/` scaffold-only diarization planning helpers
+- `stage3/` migrated heuristic speaker-identification logic
+- `stage4/` scaffold-only organization planning helpers
 
 ## Stage boundaries
 
@@ -216,15 +221,15 @@ Target outputs:
 
 ## Current code state vs target architecture
 
-Current code still reflects the older 3-stage model:
+Current code now reflects the new numbering, but Stage 2 is still missing its real implementation:
 - `src/chronicle/stage1/` is real transcription code
-- `src/chronicle/stage2/` contains text-first heuristic speaker assignment logic
-- `src/chronicle/stage3/` is only a chronology scaffold
+- `src/chronicle/stage2/` is scaffold-only
+- `src/chronicle/stage3/` contains the migrated text-first heuristic speaker-identification logic
+- `src/chronicle/stage4/` is scaffold-only organization planning
 
 That means the current code-state mapping is:
-- old Stage 2 logic should become new Stage 3 logic
-- old Stage 3 planning should become new Stage 4 planning
 - new Stage 2 is not implemented yet
+- current Stage 3 is transitional until it can consume true Stage 2 diarization artifacts
 
 This mismatch is intentional to surface now rather than hide.
 
@@ -232,14 +237,13 @@ This mismatch is intentional to surface now rather than hide.
 
 ### Step 1: migrate code and artifact naming to the new stage model
 
-Before building the new diarization stage, the repo should be realigned:
-- migrate current `src/chronicle/stage2/` logic into a new `src/chronicle/stage3/`
-- migrate current `src/chronicle/cli/stage2.py` behavior into a new Stage 3 command surface
-- move current `src/chronicle/stage3/` scaffold forward into Stage 4 planning/code locations
-- update stage directory expectations from the old `stage1/stage2/stage3` model to the new `stage1/stage2/stage3/stage4` model
-- keep artifact contracts explicit during migration rather than silently reusing old names
+This step is now complete:
+- current `src/chronicle/stage2/` logic was moved into `src/chronicle/stage3/`
+- current CLI command surface was realigned to `transcribe -> diarize -> identify -> organize`
+- old chronology scaffolding was moved forward into `src/chronicle/stage4/`
+- output directory expectations now include `stage4/`
 
-This is the first implementation step because adding a new diarization Stage 2 on top of the old numbering would make the code and docs harder to reason about.
+The next work is building the real anonymous audio-diarization Stage 2 behind that corrected structure.
 
 ### Step 2: research and choose a local Stage 2 diarization stack
 

@@ -1,4 +1,4 @@
-"""Input loading and metadata helpers for Stage 2."""
+"""Input loading and metadata helpers for Stage 3."""
 
 from __future__ import annotations
 
@@ -150,7 +150,7 @@ def load_stage1_segments(
             )
 
         if not combined_segments:
-            raise StageExecutionError("Stage 1 session artifact contained no transcript segments to diarize.")
+            raise StageExecutionError("Stage 1 session artifact contained no transcript segments to identify.")
 
         return combined_segments, [repo_relative(session_json_path)]
 
@@ -161,7 +161,7 @@ def load_stage1_segments(
         json_path, _ = legacy_stage1_output_paths(stage1_dir, audio_file)
         if not json_path.exists():
             raise StageExecutionError(
-                "Stage 2 requires existing Stage 1 artifacts. Missing: "
+                "Stage 3 requires existing Stage 1 artifacts. Missing: "
                 f"{repo_relative(json_path)}. Run `chronicle transcribe {manifest.session_id}` first."
             )
 
@@ -187,10 +187,10 @@ def load_stage1_segments(
             )
 
     if not combined_segments:
-        raise StageExecutionError("Stage 1 artifacts contained no transcript segments to diarize.")
+        raise StageExecutionError("Stage 1 artifacts contained no transcript segments to identify.")
 
     return combined_segments, artifact_paths
 
 
-def load_stage2_context_text(manifest: SessionManifest) -> str:
+def load_stage3_context_text(manifest: SessionManifest) -> str:
     return resolve_context_path(manifest).read_text(encoding="utf-8")

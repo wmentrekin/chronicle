@@ -1,2 +1,1 @@
-"""Stage 3 chronology package."""
-
+"""Stage 3 speaker identification package."""

@@ -1,2 +1,1 @@
-"""Stage 2 semantic diarization package."""
-
+"""Stage 2 anonymous audio diarization package."""

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import typer
 
-from . import benchmark, init, stage1, stage2, stage3, validate
+from . import benchmark, init, stage1, stage2, stage3, stage4, validate
 
 
 app = typer.Typer(
@@ -19,6 +19,7 @@ stage1.register(app)
 benchmark.register(app)
 stage2.register(app)
 stage3.register(app)
+stage4.register(app)
 
 
 def main() -> None:

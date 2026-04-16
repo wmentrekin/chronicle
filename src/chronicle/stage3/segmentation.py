@@ -1,4 +1,4 @@
-"""Segmentation and low-level text matching for Stage 2."""
+"""Segmentation and low-level text matching for Stage 3."""
 
 from __future__ import annotations
 
@@ -92,7 +92,7 @@ def tokenize_for_matching(text: str) -> set[str]:
     return {token for token in normalized_tokens if token and token not in STAGE2_STOPWORDS}
 
 
-def classify_stage2_segment_type(text: str) -> str:
+def classify_stage3_segment_type(text: str) -> str:
     normalized = normalize_text(text).lower()
     if not normalized:
         return "response"
@@ -116,8 +116,8 @@ def classify_stage2_segment_type(text: str) -> str:
     return "response"
 
 
-def resolve_stage2_segment_types(segments: list[dict[str, object]]) -> list[str]:
-    raw_types = [classify_stage2_segment_type(str(segment.get("text", ""))) for segment in segments]
+def resolve_stage3_segment_types(segments: list[dict[str, object]]) -> list[str]:
+    raw_types = [classify_stage3_segment_type(str(segment.get("text", ""))) for segment in segments]
     resolved = list(raw_types)
     for index, segment_type in enumerate(raw_types):
         if segment_type != "ack":
@@ -169,8 +169,8 @@ def resolve_stage2_segment_types(segments: list[dict[str, object]]) -> list[str]
     return resolved
 
 
-def build_stage2_candidate_blocks(segments: list[dict[str, object]]) -> list[dict[str, object]]:
-    segment_types = resolve_stage2_segment_types(segments)
+def build_stage3_candidate_blocks(segments: list[dict[str, object]]) -> list[dict[str, object]]:
+    segment_types = resolve_stage3_segment_types(segments)
     blocks: list[dict[str, object]] = []
 
     for segment, segment_type in zip(segments, segment_types):

@@ -13,7 +13,7 @@ from rich.table import Table
 from ..exceptions import StageExecutionError
 from ..paths import repo_relative, session_manifest_path
 from ..session import SessionManifest, resolve_audio_path, resolve_context_path
-from ..stage3.service import planned_stage3_artifacts
+from ..stage4.service import planned_stage4_artifacts
 
 
 console = Console()
@@ -94,11 +94,16 @@ def render_stage_plan(
     elif stage_name == "stage2":
         table.add_row(
             "Planned artifact",
-            (directories["stage2"] / "diarized_conversation.json").as_posix(),
+            (directories["stage2"] / "diarization.json").as_posix(),
         )
     elif stage_name == "stage3":
         table.add_row(
+            "Planned artifact",
+            (directories["stage3"] / "identified_conversation.json").as_posix(),
+        )
+    elif stage_name == "stage4":
+        table.add_row(
             "Planned artifacts",
-            ", ".join(path.name for path in planned_stage3_artifacts(manifest, directories["stage3"])),
+            ", ".join(path.name for path in planned_stage4_artifacts(manifest, directories["stage4"])),
         )
     console.print(table)

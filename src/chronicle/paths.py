@@ -54,6 +54,7 @@ def ensure_output_dirs(session_id: str) -> dict[str, Path]:
         "stage1": root / "stage1",
         "stage2": root / "stage2",
         "stage3": root / "stage3",
+        "stage4": root / "stage4",
     }
     for path in directories.values():
         path.mkdir(parents=True, exist_ok=True)

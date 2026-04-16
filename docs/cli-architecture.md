@@ -81,27 +81,36 @@ Purpose:
 Current state:
 - validate
 - render plan
-- prompt on overwrite
-- call `execute_stage2(...)`
-- write run metadata
+- prepare Stage 2 output locations
+- explain that the new anonymous audio-diarization implementation is not wired yet
 
 Migration direction:
 - this module should keep owning `chronicle diarize <session_id>`
-- but the implementation behind it should be replaced with anonymous audio diarization rather than the current text-first speaker assignment logic
+- and it should eventually call the real anonymous audio-diarization implementation
 
 ### `src/chronicle/cli/stage3.py`
 
 Purpose:
-- currently implement `chronicle chronology <session_id>`
+- currently implement `chronicle identify <session_id>`
 - currently implement `chronicle run <session_id>`
 
 Current state:
-- this module is still lightweight because current Stage 3 is only a scaffold
+- this module now owns Stage 3 speaker identification
+- it runs the earlier heuristic text-first logic in its new Stage 3 home
+- it also exposes the `run` status command
 
 Migration direction:
-- Stage 3 should become the speaker-identification layer
-- this module should eventually own something closer to `chronicle identify <session_id>`
-- current chronology scaffolding should move forward into a Stage 4 command module
+- Stage 3 should keep owning `chronicle identify <session_id>`
+- its internals should later be redesigned to reconcile true Stage 2 diarization outputs
+
+### `src/chronicle/cli/stage4.py`
+
+Purpose:
+- implement `chronicle organize <session_id>`
+
+Current state:
+- this module is lightweight because Stage 4 is scaffold-only
+- it validates the session and prepares Stage 4 output locations
 
 ## How the CLI relates to the rest of the package
 
@@ -141,12 +150,9 @@ It delegates those responsibilities to the Stage 1 package.
 
 ## Current mismatch worth knowing
 
-Chronicle is in a transition period:
-- the documented target model is now 4 stages
-- the current CLI code still reflects the older 3-stage numbering
+Chronicle is still in a transition period, but the command surface is now aligned with the 4-stage model:
+- `chronicle diarize` is Stage 2 naming, but the implementation is still scaffold-only
+- `chronicle identify` is current Stage 3 and runs the migrated heuristic logic
+- `chronicle organize` is Stage 4 naming and is scaffold-only
 
-That means:
-- `chronicle diarize` currently runs what should become future Stage 3-style identification logic
-- `chronicle chronology` currently points to what should become future Stage 4 organization logic
-
-The first implementation step after this documentation update should be to realign the CLI module layout with the new stage boundaries before the new acoustic Stage 2 is built.
+The next implementation step is building the new anonymous audio-diarization Stage 2 behind the now-correct command surface.

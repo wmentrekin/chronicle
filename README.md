@@ -4,8 +4,9 @@ Chronicle is a local-first, multi-stage agentic audio-processing workflow for tu
 
 Current implemented stages:
 - Stage 1 transcription
-- Stage 2 semantic diarization and conservative speaker assignment
-- Stage 3 chronology is still a scaffold
+- Stage 2 diarization command scaffold
+- Stage 3 speaker identification
+- Stage 4 organization scaffold
 
 ## Repository shape
 
@@ -23,6 +24,7 @@ outputs/
     stage1/
     stage2/
     stage3/
+    stage4/
     runs/
 src/chronicle/
 docs/
@@ -65,7 +67,8 @@ chronicle init
 chronicle validate <session_id>
 chronicle transcribe <session_id>
 chronicle diarize <session_id>
-chronicle chronology <session_id>
+chronicle identify <session_id>
+chronicle organize <session_id>
 chronicle run <session_id>
 ```
 
@@ -89,16 +92,22 @@ Run Stage 1 transcription:
 chronicle transcribe <session_id>
 ```
 
-Run Stage 2:
+Prepare Stage 2:
 
 ```bash
 chronicle diarize <session_id>
 ```
 
-Prepare Stage 3:
+Run Stage 3:
 
 ```bash
-chronicle chronology <session_id>
+chronicle identify <session_id>
+```
+
+Prepare Stage 4:
+
+```bash
+chronicle organize <session_id>
 ```
 
 Show current session status:
@@ -114,5 +123,6 @@ chronicle run <session_id>
 - Canonical people metadata lives in `inputs/global/participants.yaml`.
 - Public users should start from the sanitized scaffolds under `examples/inputs/` and create their own local `inputs/` tree from those templates.
 - Stage 1 writes one session-level transcript artifact per session, even when the session contains multiple audio files.
-- Stage 2 is transcript-driven semantic diarization, not audio-based speaker embedding or acoustic diarization.
+- Stage 2 command naming is aligned, but the new anonymous audio-diarization implementation is not wired yet.
+- Stage 3 currently hosts the older heuristic speaker-identification logic while the new Stage 2 is being designed.
 - Detailed implementation walkthroughs live under `docs/`.

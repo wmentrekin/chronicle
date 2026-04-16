@@ -1,4 +1,4 @@
-"""Speaker scoring and assignment for Stage 2."""
+"""Speaker scoring and assignment for Stage 3."""
 
 from __future__ import annotations
 
@@ -88,7 +88,7 @@ def detect_metadata_mentions(
     return sorted(set(mentions))
 
 
-def assign_stage2_blocks(
+def assign_stage3_blocks(
     manifest: SessionManifest,
     candidate_blocks: list[dict[str, Any]],
     participants_by_name: dict[str, dict[str, Any]],
@@ -245,13 +245,14 @@ def assign_stage2_blocks(
         )
 
     stage_notes = [
-        "Stage 2 uses local semantic heuristics over the Stage 1 transcript; it does not perform audio-based diarization.",
+        "Stage 3 currently uses local semantic heuristics over the Stage 1 transcript and session context.",
+        "This is a transitional implementation until a real anonymous audio-diarization Stage 2 exists.",
         "Speaker labels are conservative and preserve uncertainty rather than forcing attribution.",
     ]
     return assigned_blocks, stage_notes
 
 
-def reconcile_stage2_question_targets(
+def reconcile_stage3_question_targets(
     blocks: list[dict[str, Any]],
     primary_interviewees: list[str],
 ) -> None:
