@@ -64,13 +64,16 @@ def register(app: typer.Typer) -> None:
 
         directories = ensure_output_dirs(manifest.session_id)
         render_stage_plan(manifest, "stage2", directories)
+        stage2_output_paths = [
+            directories["stage2"] / "diarization.json",
+            directories["stage2"] / "diarization.md",
+            directories["stage2"] / "diarization.partial.json",
+            directories["stage2"] / "diarization.partial.md",
+        ]
         force = confirm_overwrite_if_needed(
             stage_label="Stage 2",
             force=force,
-            output_paths=[
-                directories["stage2"] / "diarization.json",
-                directories["stage2"] / "diarization.md",
-            ],
+            output_paths=stage2_output_paths,
         )
 
         started_at = datetime.now(timezone.utc)
@@ -96,7 +99,7 @@ def register(app: typer.Typer) -> None:
                 status = "partial"
                 console.print(
                     Panel(
-                        "Stage 2 artifacts already exist. Use `--force` to regenerate them.",
+                        "Stage 2 artifacts already exist. Keeping the existing outputs unchanged.",
                         title="Stage 2 Skip",
                     )
                 )
