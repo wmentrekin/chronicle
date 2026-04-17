@@ -19,7 +19,10 @@ from ..utils import slugify_stem
 
 
 DEFAULT_STAGE2_VENV_PYTHON = REPO_ROOT / ".venv-stage2" / "bin" / "python"
+DEFAULT_STAGE2_BACKEND = "pyannote"
 DEFAULT_STAGE2_PYANNOTE_MODEL = "pyannote/speaker-diarization-3.1"
+DEFAULT_STAGE2_SPEECHBRAIN_VAD_MODEL = "speechbrain/vad-crdnn-libriparty"
+DEFAULT_STAGE2_SPEECHBRAIN_EMBEDDING_MODEL = "speechbrain/spkrec-ecapa-voxceleb"
 
 
 def resolve_stage2_audio_file(manifest: SessionManifest, audio_file: Optional[str]) -> tuple[str, Path]:
@@ -53,6 +56,7 @@ def write_pcm16_wav(path: Path, audio: np.ndarray, sample_rate: int = STAGE1_TRA
 
 def stage2_spike_output_paths(
     spike_dir: Path,
+    backend: str,
     audio_file: str,
     sample_start_seconds: float,
     sample_seconds: int,
@@ -62,13 +66,14 @@ def stage2_spike_output_paths(
     base = f"{slug}.{sample_tag}"
     return {
         "sample_wav": spike_dir / f"{base}.sample.wav",
-        "result_json": spike_dir / f"{base}.pyannote.json",
+        "result_json": spike_dir / f"{base}.{backend}.json",
     }
 
 
-def run_stage2_pyannote_spike(
+def _run_stage2_runner(
     *,
     manifest: SessionManifest,
+    backend: str,
     audio_file: Optional[str],
     sample_seconds: int,
     sample_start_seconds: float,
@@ -77,12 +82,13 @@ def run_stage2_pyannote_spike(
     max_speakers: Optional[int],
     device: str,
     stage2_python: Path,
-    model_name: str,
+    runner_path: Path,
+    command_tail: list[str],
     spike_dir: Path,
     force: bool,
 ) -> dict[str, object]:
     selected_audio, audio_path = resolve_stage2_audio_file(manifest, audio_file)
-    output_paths = stage2_spike_output_paths(spike_dir, selected_audio, sample_start_seconds, sample_seconds)
+    output_paths = stage2_spike_output_paths(spike_dir, backend, selected_audio, sample_start_seconds, sample_seconds)
     sample_wav_path = output_paths["sample_wav"]
     result_json_path = output_paths["result_json"]
 
@@ -112,23 +118,14 @@ def run_stage2_pyannote_spike(
     )
     write_pcm16_wav(sample_wav_path, audio)
 
-    runner_path = REPO_ROOT / "src" / "chronicle" / "stage2" / "pyannote_spike_runner.py"
     command = [
         stage2_python.as_posix(),
         runner_path.as_posix(),
         "--audio",
         sample_wav_path.as_posix(),
-        "--model",
-        model_name,
         "--device",
         device,
-    ]
-    if num_speakers is not None:
-        command.extend(["--num-speakers", str(num_speakers)])
-    if min_speakers is not None:
-        command.extend(["--min-speakers", str(min_speakers)])
-    if max_speakers is not None:
-        command.extend(["--max-speakers", str(max_speakers)])
+    ] + command_tail
 
     started = time.perf_counter()
     result = subprocess.run(
@@ -148,17 +145,17 @@ def run_stage2_pyannote_spike(
     try:
         runner_payload = json.loads(result.stdout)
     except json.JSONDecodeError as exc:
-        raise StageExecutionError("Stage 2 pyannote runner returned invalid JSON.") from exc
+        raise StageExecutionError(f"Stage 2 {backend} runner returned invalid JSON.") from exc
 
     artifact = {
         "stage": "stage2_audio_diarization_spike",
+        "backend": backend,
         "session_id": manifest.session_id,
         "source_audio": repo_relative(audio_path),
         "sample_audio": repo_relative(sample_wav_path),
         "sample_start_seconds": sample_start_seconds,
         "sample_seconds": bounded_sample_seconds,
-        "model": {
-            "name": model_name,
+        "runtime": {
             "device": device,
             "runtime_python": repo_relative(stage2_python),
         },
@@ -171,4 +168,108 @@ def run_stage2_pyannote_spike(
         "runner": runner_payload,
     }
     result_json_path.write_text(json.dumps(artifact, indent=2) + "\n", encoding="utf-8")
+    return artifact
+
+
+def run_stage2_pyannote_spike(
+    *,
+    manifest: SessionManifest,
+    audio_file: Optional[str],
+    sample_seconds: int,
+    sample_start_seconds: float,
+    num_speakers: Optional[int],
+    min_speakers: Optional[int],
+    max_speakers: Optional[int],
+    device: str,
+    stage2_python: Path,
+    model_name: str,
+    spike_dir: Path,
+    force: bool,
+) -> dict[str, object]:
+    command_tail = [
+        "--model",
+        model_name,
+    ]
+    if num_speakers is not None:
+        command_tail.extend(["--num-speakers", str(num_speakers)])
+    if min_speakers is not None:
+        command_tail.extend(["--min-speakers", str(min_speakers)])
+    if max_speakers is not None:
+        command_tail.extend(["--max-speakers", str(max_speakers)])
+
+    return _run_stage2_runner(
+        manifest=manifest,
+        backend="pyannote",
+        audio_file=audio_file,
+        sample_seconds=sample_seconds,
+        sample_start_seconds=sample_start_seconds,
+        num_speakers=num_speakers,
+        min_speakers=min_speakers,
+        max_speakers=max_speakers,
+        device=device,
+        stage2_python=stage2_python,
+        runner_path=REPO_ROOT / "src" / "chronicle" / "stage2" / "pyannote_spike_runner.py",
+        command_tail=command_tail,
+        spike_dir=spike_dir,
+        force=force,
+    )
+
+
+def run_stage2_speechbrain_spike(
+    *,
+    manifest: SessionManifest,
+    audio_file: Optional[str],
+    sample_seconds: int,
+    sample_start_seconds: float,
+    num_speakers: Optional[int],
+    min_speakers: Optional[int],
+    max_speakers: Optional[int],
+    device: str,
+    stage2_python: Path,
+    vad_model_name: str,
+    embedding_model_name: str,
+    spike_dir: Path,
+    force: bool,
+) -> dict[str, object]:
+    command_tail = [
+        "--vad-model",
+        vad_model_name,
+        "--embedding-model",
+        embedding_model_name,
+    ]
+    if num_speakers is not None:
+        command_tail.extend(["--num-speakers", str(num_speakers)])
+    if min_speakers is not None:
+        command_tail.extend(["--min-speakers", str(min_speakers)])
+    if max_speakers is not None:
+        command_tail.extend(["--max-speakers", str(max_speakers)])
+
+    artifact = _run_stage2_runner(
+        manifest=manifest,
+        backend="speechbrain",
+        audio_file=audio_file,
+        sample_seconds=sample_seconds,
+        sample_start_seconds=sample_start_seconds,
+        num_speakers=num_speakers,
+        min_speakers=min_speakers,
+        max_speakers=max_speakers,
+        device=device,
+        stage2_python=stage2_python,
+        runner_path=REPO_ROOT / "src" / "chronicle" / "stage2" / "speechbrain_spike_runner.py",
+        command_tail=command_tail,
+        spike_dir=spike_dir,
+        force=force,
+    )
+    artifact["models"] = {
+        "vad": vad_model_name,
+        "embedding": embedding_model_name,
+    }
+    output_paths = stage2_spike_output_paths(
+        spike_dir,
+        "speechbrain",
+        resolve_stage2_audio_file(manifest, audio_file)[0],
+        sample_start_seconds,
+        sample_seconds,
+    )
+    output_paths["result_json"].write_text(json.dumps(artifact, indent=2) + "\n", encoding="utf-8")
     return artifact

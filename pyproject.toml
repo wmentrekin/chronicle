@@ -37,6 +37,11 @@ stage2-pyannote = [
   "numpy<2",
   "pyannote.audio>=3.3,<3.4",
 ]
+stage2-speechbrain = [
+  "numpy<2",
+  "scikit-learn>=1.5",
+  "speechbrain>=1.0,<1.2",
+]
 
 [tool.uv]
 package = true

@@ -10,14 +10,22 @@ from rich.panel import Panel
 from rich.table import Table
 
 from ..exceptions import SessionValidationError, StageExecutionError
-from ..paths import DEFAULT_PARAKEET_MODEL_DIR, DEFAULT_PARTICIPANTS_FILE, REPO_ROOT, ensure_output_dirs
+from ..paths import DEFAULT_PARAKEET_MODEL_DIR, DEFAULT_PARTICIPANTS_FILE, REPO_ROOT, ensure_output_dirs, repo_relative
 from ..session import require_valid_session
 from ..stage1.service import (
     DEFAULT_STAGE1_PARAKEET_MODEL,
     benchmark_parakeet_concurrency,
     benchmark_parakeet_chunk_sizes,
 )
-from ..stage2.benchmark import DEFAULT_STAGE2_PYANNOTE_MODEL, DEFAULT_STAGE2_VENV_PYTHON, run_stage2_pyannote_spike
+from ..stage2.benchmark import (
+    DEFAULT_STAGE2_BACKEND,
+    DEFAULT_STAGE2_PYANNOTE_MODEL,
+    DEFAULT_STAGE2_SPEECHBRAIN_EMBEDDING_MODEL,
+    DEFAULT_STAGE2_SPEECHBRAIN_VAD_MODEL,
+    DEFAULT_STAGE2_VENV_PYTHON,
+    run_stage2_pyannote_spike,
+    run_stage2_speechbrain_spike,
+)
 from ..utils import write_json
 from .common import console
 
@@ -268,6 +276,11 @@ def register(app: typer.Typer) -> None:
             "--sample-start-seconds",
             help="Start offset in seconds for the sample window.",
         ),
+        backend: str = typer.Option(
+            DEFAULT_STAGE2_BACKEND,
+            "--backend",
+            help="Stage 2 spike backend to run (`pyannote` or `speechbrain`).",
+        ),
         num_speakers: int | None = typer.Option(
             None,
             "--num-speakers",
@@ -294,11 +307,21 @@ def register(app: typer.Typer) -> None:
         model_name: str = typer.Option(
             DEFAULT_STAGE2_PYANNOTE_MODEL,
             "--model",
-            help="Pyannote model id used for the Stage 2 spike.",
+            help="Pyannote model id used when `--backend pyannote`.",
+        ),
+        vad_model_name: str = typer.Option(
+            DEFAULT_STAGE2_SPEECHBRAIN_VAD_MODEL,
+            "--vad-model",
+            help="SpeechBrain VAD model id used when `--backend speechbrain`.",
+        ),
+        embedding_model_name: str = typer.Option(
+            DEFAULT_STAGE2_SPEECHBRAIN_EMBEDDING_MODEL,
+            "--embedding-model",
+            help="SpeechBrain embedding model id used when `--backend speechbrain`.",
         ),
         force: bool = typer.Option(False, "--force", help="Overwrite existing Stage 2 spike artifacts."),
     ) -> None:
-        """Benchmark the Stage 2 pyannote diarization path on one local sample window."""
+        """Benchmark a Stage 2 diarization backend on one local sample window."""
         try:
             manifest = require_valid_session(session_id, console, participants_file)
         except SessionValidationError as exc:
@@ -306,21 +329,42 @@ def register(app: typer.Typer) -> None:
 
         directories = ensure_output_dirs(manifest.session_id)
         try:
-            with console.status("Running Stage 2 pyannote spike..."):
-                result = run_stage2_pyannote_spike(
-                    manifest=manifest,
-                    audio_file=audio_file,
-                    sample_seconds=sample_seconds,
-                    sample_start_seconds=sample_start_seconds,
-                    num_speakers=num_speakers,
-                    min_speakers=min_speakers,
-                    max_speakers=max_speakers,
-                    device=device,
-                    stage2_python=stage2_python,
-                    model_name=model_name,
-                    spike_dir=directories["stage2_spike"],
-                    force=force,
-                )
+            with console.status(f"Running Stage 2 {backend} spike..."):
+                if backend == "pyannote":
+                    result = run_stage2_pyannote_spike(
+                        manifest=manifest,
+                        audio_file=audio_file,
+                        sample_seconds=sample_seconds,
+                        sample_start_seconds=sample_start_seconds,
+                        num_speakers=num_speakers,
+                        min_speakers=min_speakers,
+                        max_speakers=max_speakers,
+                        device=device,
+                        stage2_python=stage2_python,
+                        model_name=model_name,
+                        spike_dir=directories["stage2_spike"],
+                        force=force,
+                    )
+                elif backend == "speechbrain":
+                    result = run_stage2_speechbrain_spike(
+                        manifest=manifest,
+                        audio_file=audio_file,
+                        sample_seconds=sample_seconds,
+                        sample_start_seconds=sample_start_seconds,
+                        num_speakers=num_speakers,
+                        min_speakers=min_speakers,
+                        max_speakers=max_speakers,
+                        device=device,
+                        stage2_python=stage2_python,
+                        vad_model_name=vad_model_name,
+                        embedding_model_name=embedding_model_name,
+                        spike_dir=directories["stage2_spike"],
+                        force=force,
+                    )
+                else:
+                    raise StageExecutionError(
+                        f"Unsupported Stage 2 benchmark backend `{backend}`. Use `pyannote` or `speechbrain`."
+                    )
         except StageExecutionError as exc:
             console.print(Panel(str(exc), title="Stage 2 Spike Failed", style="red"))
             raise typer.Exit(code=1) from exc
@@ -333,6 +377,7 @@ def register(app: typer.Typer) -> None:
         table.add_row("Sample audio", str(result["sample_audio"]))
         table.add_row("Sample start", f"{result['sample_start_seconds']}s")
         table.add_row("Sample length", f"{result['sample_seconds']}s")
+        table.add_row("Backend", str(result["backend"]))
         table.add_row("Load time", f"{runner['load_seconds']}s")
         table.add_row("Run time", f"{runner['run_seconds']}s")
         table.add_row("Wall time", f"{result['wall_seconds']}s")
