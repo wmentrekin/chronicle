@@ -89,6 +89,7 @@ def register(app: typer.Typer) -> None:
                 stage2_python=stage2_python,
                 vad_model_name="speechbrain/vad-crdnn-libriparty",
                 embedding_model_name="speechbrain/spkrec-ecapa-voxceleb",
+                progress_callback=lambda message: console.print(f"[cyan]{message}[/cyan]"),
             )
             run_notes.extend(stage_notes)
             if skipped_paths and not output_paths:
@@ -113,13 +114,33 @@ def register(app: typer.Typer) -> None:
             raise typer.Exit(code=130) from exc
         except StageExecutionError as exc:
             run_notes.append(str(exc))
+            partial_paths = [
+                directories["stage2"] / "diarization.partial.json",
+                directories["stage2"] / "diarization.partial.md",
+            ]
+            existing_partial_paths = [repo_relative(path) for path in partial_paths if path.exists()]
+            if existing_partial_paths:
+                run_notes.append(f"Partial Stage 2 artifacts exist: {', '.join(existing_partial_paths)}")
             console.print(Panel(str(exc), title="Stage 2 Failed", style="red"))
             raise typer.Exit(code=1) from exc
         except Exception as exc:
             run_notes.append(f"Unhandled stage 2 error: {exc}")
+            partial_paths = [
+                directories["stage2"] / "diarization.partial.json",
+                directories["stage2"] / "diarization.partial.md",
+            ]
+            existing_partial_paths = [repo_relative(path) for path in partial_paths if path.exists()]
+            if existing_partial_paths:
+                run_notes.append(f"Partial Stage 2 artifacts exist: {', '.join(existing_partial_paths)}")
             console.print(Panel(str(exc), title="Stage 2 Failed", style="red"))
             raise typer.Exit(code=1) from exc
         finally:
+            if not output_paths:
+                partial_paths = [
+                    directories["stage2"] / "diarization.partial.json",
+                    directories["stage2"] / "diarization.partial.md",
+                ]
+                output_paths = [repo_relative(path) for path in partial_paths if path.exists()]
             run_path = write_run_metadata(
                 runs_dir=directories["runs"],
                 stage_name="stage2",

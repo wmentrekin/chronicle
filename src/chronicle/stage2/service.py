@@ -7,13 +7,13 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from ..exceptions import StageExecutionError
 from ..paths import REPO_ROOT, repo_relative
 from ..session import SessionManifest, resolve_audio_path
 from ..stage1.audio import decode_audio_to_mono_16k, probe_audio_file
-from .artifacts import stage2_output_paths, write_stage2_artifacts
+from .artifacts import stage2_output_paths, stage2_partial_output_paths, write_stage2_artifacts
 from .benchmark import (
     DEFAULT_STAGE2_SPEECHBRAIN_EMBEDDING_MODEL,
     DEFAULT_STAGE2_SPEECHBRAIN_VAD_MODEL,
@@ -37,6 +37,7 @@ def execute_stage2(
     stage2_python: Path,
     vad_model_name: str,
     embedding_model_name: str,
+    progress_callback: Callable[[str], None] | None = None,
 ) -> tuple[list[str], list[str], list[str]]:
     json_path, markdown_path = stage2_output_paths(stage2_dir)
     existing_paths = [path for path in (json_path, markdown_path) if path.exists()]
@@ -56,21 +57,54 @@ def execute_stage2(
     total_wall_seconds = 0.0
     total_run_seconds = 0.0
     total_load_seconds = 0.0
+    probes = [(audio_file, resolve_audio_path(manifest, audio_file), probe_audio_file(resolve_audio_path(manifest, audio_file)))
+              for audio_file in manifest.audio_files]
+    total_audio_seconds = sum(probe.duration_seconds for _, _, probe in probes)
+    processed_audio_seconds = 0.0
 
-    for audio_index, audio_file in enumerate(manifest.audio_files, start=1):
-        audio_path = resolve_audio_path(manifest, audio_file)
-        probe = probe_audio_file(audio_path)
-        runner_payload, sample_audio_path, wall_seconds = run_stage2_speechbrain_audio(
-            audio_path=audio_path,
-            duration_seconds=probe.duration_seconds,
-            num_speakers=num_speakers,
-            min_speakers=min_speakers,
-            max_speakers=max_speakers,
-            device=device,
-            stage2_python=stage2_python,
-            vad_model_name=vad_model_name,
-            embedding_model_name=embedding_model_name,
-        )
+    for audio_index, (audio_file, audio_path, probe) in enumerate(probes, start=1):
+        if progress_callback is not None:
+            progress_callback(
+                (
+                    f"Stage 2 file {audio_index}/{len(probes)}: `{repo_relative(audio_path)}` "
+                    f"({probe.duration_seconds / 60.0:.1f} min)"
+                )
+            )
+        try:
+            runner_payload, sample_audio_path, wall_seconds = run_stage2_speechbrain_audio(
+                audio_path=audio_path,
+                duration_seconds=probe.duration_seconds,
+                num_speakers=num_speakers,
+                min_speakers=min_speakers,
+                max_speakers=max_speakers,
+                device=device,
+                stage2_python=stage2_python,
+                vad_model_name=vad_model_name,
+                embedding_model_name=embedding_model_name,
+            )
+        except Exception:
+            write_stage2_artifacts(
+                stage_dir=stage2_dir,
+                artifact=build_stage2_artifact(
+                    manifest=manifest,
+                    audio_artifacts=audio_artifacts,
+                    combined_turns=combined_turns,
+                    notes=notes,
+                    num_speakers=num_speakers,
+                    min_speakers=min_speakers,
+                    max_speakers=max_speakers,
+                    device=device,
+                    stage2_python=stage2_python,
+                    vad_model_name=vad_model_name,
+                    embedding_model_name=embedding_model_name,
+                    total_wall_seconds=total_wall_seconds,
+                    total_load_seconds=total_load_seconds,
+                    total_run_seconds=total_run_seconds,
+                    status="partial",
+                ),
+                partial=True,
+            )
+            raise
 
         audio_artifacts.append(
             {
@@ -88,6 +122,7 @@ def execute_stage2(
         total_wall_seconds += wall_seconds
         total_load_seconds += float(runner_payload["load_seconds"])
         total_run_seconds += float(runner_payload["run_seconds"])
+        processed_audio_seconds += probe.duration_seconds
 
         for turn in runner_payload["turns"]:
             combined_turns.append(
@@ -102,15 +137,92 @@ def execute_stage2(
                 }
             )
 
+        write_stage2_artifacts(
+            stage_dir=stage2_dir,
+            artifact=build_stage2_artifact(
+                manifest=manifest,
+                audio_artifacts=audio_artifacts,
+                combined_turns=combined_turns,
+                notes=notes,
+                num_speakers=num_speakers,
+                min_speakers=min_speakers,
+                max_speakers=max_speakers,
+                device=device,
+                stage2_python=stage2_python,
+                vad_model_name=vad_model_name,
+                embedding_model_name=embedding_model_name,
+                total_wall_seconds=total_wall_seconds,
+                total_load_seconds=total_load_seconds,
+                total_run_seconds=total_run_seconds,
+                status="partial",
+            ),
+            partial=True,
+        )
+        if progress_callback is not None:
+            eta_seconds = None
+            if total_wall_seconds > 0 and processed_audio_seconds > 0:
+                remaining_audio_seconds = max(0.0, total_audio_seconds - processed_audio_seconds)
+                eta_seconds = round((remaining_audio_seconds / processed_audio_seconds) * total_wall_seconds, 1)
+            eta_text = f", est. {eta_seconds / 60.0:.1f} min remaining" if eta_seconds is not None else ""
+            progress_callback(
+                (
+                    f"Completed file {audio_index}/{len(probes)}: "
+                    f"wall {wall_seconds:.2f}s, load {runner_payload['load_seconds']:.2f}s, "
+                    f"run {runner_payload['run_seconds']:.2f}s, turns {runner_payload['turn_count']}"
+                    f"{eta_text}"
+                )
+            )
         session_offset_seconds += probe.duration_seconds
         try:
             sample_audio_path.unlink(missing_ok=True)
         except Exception:
             notes.append(f"Could not remove temporary Stage 2 audio sample `{repo_relative(sample_audio_path)}`.")
 
+    artifact = build_stage2_artifact(
+        manifest=manifest,
+        audio_artifacts=audio_artifacts,
+        combined_turns=combined_turns,
+        notes=notes,
+        num_speakers=num_speakers,
+        min_speakers=min_speakers,
+        max_speakers=max_speakers,
+        device=device,
+        stage2_python=stage2_python,
+        vad_model_name=vad_model_name,
+        embedding_model_name=embedding_model_name,
+        total_wall_seconds=total_wall_seconds,
+        total_load_seconds=total_load_seconds,
+        total_run_seconds=total_run_seconds,
+        status="complete",
+    )
+    written_paths = write_stage2_artifacts(stage_dir=stage2_dir, artifact=artifact)
+    for partial_path in stage2_partial_output_paths(stage2_dir):
+        partial_path.unlink(missing_ok=True)
+    return [repo_relative(path) for path in written_paths], [], notes
+
+
+def build_stage2_artifact(
+    *,
+    manifest: SessionManifest,
+    audio_artifacts: list[dict[str, Any]],
+    combined_turns: list[dict[str, Any]],
+    notes: list[str],
+    num_speakers: Optional[int],
+    min_speakers: Optional[int],
+    max_speakers: Optional[int],
+    device: str,
+    stage2_python: Path,
+    vad_model_name: str,
+    embedding_model_name: str,
+    total_wall_seconds: float,
+    total_load_seconds: float,
+    total_run_seconds: float,
+    status: str,
+) -> dict[str, Any]:
     speaker_labels = sorted({turn["speaker_label"] for turn in combined_turns})
-    artifact = {
+    return {
         "stage": "stage2_audio_diarization",
+        "status": status,
         "backend": DEFAULT_STAGE2_BACKEND,
         "session_id": manifest.session_id,
         "audio_files": audio_artifacts,
@@ -134,8 +246,6 @@ def execute_stage2(
         },
         "notes": notes,
     }
-    written_paths = write_stage2_artifacts(stage_dir=stage2_dir, artifact=artifact)
-    return [repo_relative(path) for path in written_paths], [], notes
 
 
 def run_stage2_speechbrain_audio(

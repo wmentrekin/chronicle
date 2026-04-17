@@ -15,12 +15,22 @@ def stage2_output_paths(stage_dir: Path) -> tuple[Path, Path]:
     )
 
 
+def stage2_partial_output_paths(stage_dir: Path) -> tuple[Path, Path]:
+    return (
+        stage_dir / "diarization.partial.json",
+        stage_dir / "diarization.partial.md",
+    )
+
+
 def write_stage2_artifacts(
     *,
     stage_dir: Path,
     artifact: dict[str, Any],
+    partial: bool = False,
 ) -> list[Path]:
-    json_path, markdown_path = stage2_output_paths(stage_dir)
+    json_path, markdown_path = (
+        stage2_partial_output_paths(stage_dir) if partial else stage2_output_paths(stage_dir)
+    )
     write_json(json_path, artifact)
     markdown_path.write_text(render_stage2_markdown(artifact), encoding="utf-8")
     return [json_path, markdown_path]
@@ -32,6 +42,7 @@ def render_stage2_markdown(artifact: dict[str, Any]) -> str:
         "",
         f"- **Session ID:** {artifact['session_id']}",
         f"- **Backend:** {artifact['backend']}",
+        f"- **Status:** {artifact.get('status', 'complete')}",
         f"- **Audio files:** {len(artifact['audio_files'])}",
         f"- **Speaker labels:** {', '.join(artifact['speaker_labels']) if artifact['speaker_labels'] else 'none'}",
         f"- **Turn count:** {len(artifact['turns'])}",
