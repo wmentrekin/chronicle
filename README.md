@@ -4,7 +4,7 @@ Chronicle is a local-first, multi-stage agentic audio-processing workflow for tu
 
 Current implemented stages:
 - Stage 1 transcription
-- Stage 2 diarization command scaffold
+- Stage 2 diarization
 - Stage 3 speaker identification
 - Stage 4 organization scaffold
 
@@ -98,6 +98,13 @@ Prepare Stage 2:
 chronicle diarize <session_id>
 ```
 
+Benchmark Stage 2 backends:
+
+```bash
+chronicle benchmark-stage2 <session_id> --backend pyannote
+chronicle benchmark-stage2 <session_id> --backend speechbrain
+```
+
 Run Stage 3:
 
 ```bash
@@ -123,6 +130,7 @@ chronicle run <session_id>
 - Canonical people metadata lives in `inputs/global/participants.yaml`.
 - Public users should start from the sanitized scaffolds under `examples/inputs/` and create their own local `inputs/` tree from those templates.
 - Stage 1 writes one session-level transcript artifact per session, even when the session contains multiple audio files.
-- Stage 2 command naming is aligned, but the new anonymous audio-diarization implementation is not wired yet.
+- `chronicle diarize` now uses the local SpeechBrain-based anonymous diarization path by default.
+- `benchmark-stage2` remains available for backend comparison against pyannote.
 - Stage 3 currently hosts the older heuristic speaker-identification logic while the new Stage 2 is being designed.
 - Detailed implementation walkthroughs live under `docs/`.

@@ -129,7 +129,7 @@ def register(app: typer.Typer) -> None:
         table.add_column("Status", style="white")
         table.add_column("Output dir", style="white")
         table.add_row("transcribe", "implemented", directories["stage1"].as_posix())
-        table.add_row("diarize", "validated, not implemented", directories["stage2"].as_posix())
+        table.add_row("diarize", "implemented", directories["stage2"].as_posix())
         table.add_row("identify", "implemented", directories["stage3"].as_posix())
         table.add_row("organize", "validated, not implemented", directories["stage4"].as_posix())
         console.print(table)

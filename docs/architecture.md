@@ -73,13 +73,13 @@ chronicle identify <session_id>
 chronicle organize <session_id>
 ```
 
-Current code is not fully aligned with that command surface yet. Today:
+Current code is mostly aligned with that command surface now. Today:
 - `transcribe` is real Stage 1
-- `diarize` is scaffold-only while the new Stage 2 is being designed
+- `diarize` uses the current local SpeechBrain-backed Stage 2 implementation
 - `identify` runs the migrated heuristic text-first logic under Stage 3
 - `organize` is scaffold-only
 
-So the command surface is now aligned, but the implementation still needs a real Stage 2 behind it.
+So the command surface is aligned, but Stage 2 still needs backend hardening and Stage 3 still needs redesign around true Stage 2 inputs.
 
 ## CLI architecture
 
@@ -127,7 +127,7 @@ Target layout:
 
 Current code implements:
 - `stage1/` transcription
-- `stage2/` scaffold-only diarization planning helpers
+- `stage2/` local anonymous diarization plus benchmark backends
 - `stage3/` migrated heuristic speaker-identification logic
 - `stage4/` scaffold-only organization planning helpers
 
@@ -221,17 +221,15 @@ Target outputs:
 
 ## Current code state vs target architecture
 
-Current code now reflects the new numbering, but Stage 2 is still missing its real implementation:
+Current code now reflects the new numbering, and Stage 2 now has an initial production implementation:
 - `src/chronicle/stage1/` is real transcription code
-- `src/chronicle/stage2/` is scaffold-only
+- `src/chronicle/stage2/` now contains the current SpeechBrain-backed implementation plus benchmark tooling and backend spikes
 - `src/chronicle/stage3/` contains the migrated text-first heuristic speaker-identification logic
 - `src/chronicle/stage4/` is scaffold-only organization planning
 
 That means the current code-state mapping is:
-- new Stage 2 is not implemented yet
+- new Stage 2 is implemented as the current production `chronicle diarize` path using the SpeechBrain backend
 - current Stage 3 is transitional until it can consume true Stage 2 diarization artifacts
-
-This mismatch is intentional to surface now rather than hide.
 
 ## Implementation plan
 
@@ -243,14 +241,23 @@ This step is now complete:
 - old chronology scaffolding was moved forward into `src/chronicle/stage4/`
 - output directory expectations now include `stage4/`
 
-The next work is building the real anonymous audio-diarization Stage 2 behind that corrected structure.
+The next work is hardening the current Stage 2 backend and integrating it cleanly with Stage 3.
 
 ### Step 2: research and choose a local Stage 2 diarization stack
 
-Once the numbering and code layout match the intended architecture:
-- evaluate local diarization options
-- compare local-machine feasibility
-- decide how to support optional speaker-count hints
+This step is now in progress.
+
+Current findings:
+- `pyannote` remains the quality/reference baseline
+- a custom SpeechBrain-style spike path is now implemented for comparison
+- both backends are exposed through `chronicle benchmark-stage2`
+- Stage 2 now uses separate Chronicle-managed runtimes for backend experimentation rather than trying to force one shared env
+
+Current benchmark direction on this machine:
+- pyannote is workable but scales poorly on longer CPU samples
+- the refined SpeechBrain-style path scales materially better on `30s` and `60s` windows
+- SpeechBrain is the current local implementation baseline
+- pyannote remains the comparison baseline until output quality is reviewed more carefully
 
 ### Step 3: define the Stage 2 artifact contract
 
@@ -279,6 +286,7 @@ Do not invest further in the current heuristic text-only Stage 2 as the long-ter
 
 The current best direction is:
 1. keep Stage 1 largely as-is
-2. add a true anonymous audio-diarization Stage 2
-3. move identity assignment into Stage 3
-4. keep Stage 4 focused on organization, not attribution
+2. continue Stage 2 backend evaluation with pyannote and SpeechBrain-style spikes
+3. promote one backend into the real `chronicle diarize` path only after quality review
+4. keep identity assignment in Stage 3
+5. keep Stage 4 focused on organization, not attribution

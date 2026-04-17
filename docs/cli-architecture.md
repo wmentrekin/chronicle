@@ -70,8 +70,16 @@ It is command orchestration only. The actual transcription logic lives under `sr
 Purpose:
 - implement `chronicle benchmark-stage1`
 - implement `chronicle benchmark-stage1-concurrency`
+- implement `chronicle benchmark-stage2`
 
-This is the operator-facing wrapper around Stage 1 benchmark functions.
+This is the operator-facing wrapper around Stage 1 and Stage 2 benchmark functions.
+
+Current Stage 2 benchmark role:
+- expose backend comparison through `--backend`
+- currently support:
+  - `pyannote`
+  - `speechbrain`
+- orchestrate separate Stage 2 runtimes during backend evaluation
 
 ### `src/chronicle/cli/stage2.py`
 
@@ -81,12 +89,13 @@ Purpose:
 Current state:
 - validate
 - render plan
-- prepare Stage 2 output locations
-- explain that the new anonymous audio-diarization implementation is not wired yet
+- handle overwrite prompting
+- call the Stage 2 service
+- write run metadata and completion status
 
 Migration direction:
 - this module should keep owning `chronicle diarize <session_id>`
-- and it should eventually call the real anonymous audio-diarization implementation
+- and it now calls the current SpeechBrain-backed anonymous audio-diarization implementation
 
 ### `src/chronicle/cli/stage3.py`
 
@@ -151,8 +160,9 @@ It delegates those responsibilities to the Stage 1 package.
 ## Current mismatch worth knowing
 
 Chronicle is still in a transition period, but the command surface is now aligned with the 4-stage model:
-- `chronicle diarize` is Stage 2 naming, but the implementation is still scaffold-only
+- `chronicle diarize` is now implemented with the current local SpeechBrain-backed Stage 2 backend
+- `chronicle benchmark-stage2` is the real current entrypoint for Stage 2 backend evaluation
 - `chronicle identify` is current Stage 3 and runs the migrated heuristic logic
 - `chronicle organize` is Stage 4 naming and is scaffold-only
 
-The next implementation step is building the new anonymous audio-diarization Stage 2 behind the now-correct command surface.
+The next implementation step is improving the current Stage 2 backend and integrating it cleanly with Stage 3.

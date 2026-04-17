@@ -8,10 +8,14 @@ inputs/
 outputs/
 .venv/
 .venv-transcribe/
+.venv-stage2/
+.venv-stage2-speechbrain/
 .conda-parakeet/
 .cache/
 models/
 tmp/
+pretrained_models/
+pretrained_model_checkpoints/
 __pycache__/
 *.py[cod]
 agent-context/

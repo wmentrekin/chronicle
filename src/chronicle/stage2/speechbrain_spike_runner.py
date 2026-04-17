@@ -23,7 +23,11 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def merge_labeled_segments(segments: list[dict[str, float | str]]) -> list[dict[str, float | str]]:
+def merge_labeled_segments(
+    segments: list[dict[str, float | str]],
+    *,
+    join_gap_seconds: float = 0.15,
+) -> list[dict[str, float | str]]:
     merged: list[dict[str, float | str]] = []
     for segment in sorted(segments, key=lambda item: (float(item["start"]), float(item["end"]))):
         if not merged:
@@ -32,12 +36,94 @@ def merge_labeled_segments(segments: list[dict[str, float | str]]) -> list[dict[
         previous = merged[-1]
         if (
             previous["speaker_label"] == segment["speaker_label"]
-            and float(segment["start"]) <= float(previous["end"]) + 0.15
+            and float(segment["start"]) <= float(previous["end"]) + join_gap_seconds
         ):
             previous["end"] = max(float(previous["end"]), float(segment["end"]))
             continue
         merged.append(segment)
     return merged
+
+
+def build_non_overlapping_turns(
+    segments: list[dict[str, float | str]],
+    speech_regions: list[dict[str, float]],
+) -> list[dict[str, float | str]]:
+    if not segments:
+        return []
+
+    candidate_boundaries = {
+        round(float(segment["start"]), 3)
+        for segment in segments
+    } | {
+        round(float(segment["end"]), 3)
+        for segment in segments
+    } | {
+        round(float(region["start"]), 3)
+        for region in speech_regions
+    } | {
+        round(float(region["end"]), 3)
+        for region in speech_regions
+    }
+    boundaries = sorted(candidate_boundaries)
+
+    intervals: list[dict[str, float | str]] = []
+    for left, right in zip(boundaries, boundaries[1:]):
+        if right - left < 0.05:
+            continue
+        midpoint = (left + right) / 2.0
+        if not any(float(region["start"]) <= midpoint <= float(region["end"]) for region in speech_regions):
+            continue
+
+        active = [
+            segment
+            for segment in segments
+            if float(segment["start"]) <= midpoint < float(segment["end"])
+        ]
+        if not active:
+            continue
+
+        label_scores: dict[str, tuple[int, float, float]] = {}
+        for segment in active:
+            label = str(segment["speaker_label"])
+            count, total_duration, center_distance = label_scores.get(label, (0, 0.0, 0.0))
+            duration = float(segment["end"]) - float(segment["start"])
+            segment_midpoint = (float(segment["start"]) + float(segment["end"])) / 2.0
+            label_scores[label] = (
+                count + 1,
+                total_duration + duration,
+                center_distance - abs(segment_midpoint - midpoint),
+            )
+
+        selected_label = max(
+            label_scores.items(),
+            key=lambda item: (item[1][0], item[1][1], item[1][2], item[0]),
+        )[0]
+        intervals.append(
+            {
+                "speaker_label": selected_label,
+                "start": round(left, 3),
+                "end": round(right, 3),
+            }
+        )
+
+    merged = merge_labeled_segments(intervals, join_gap_seconds=0.05)
+
+    smoothed: list[dict[str, float | str]] = []
+    for segment in merged:
+        duration = float(segment["end"]) - float(segment["start"])
+        if duration >= 0.3 or not smoothed:
+            smoothed.append(segment)
+            continue
+
+        previous = smoothed[-1]
+        previous_duration = float(previous["end"]) - float(previous["start"])
+        if previous_duration >= duration:
+            previous["end"] = max(float(previous["end"]), float(segment["end"]))
+        else:
+            segment["start"] = previous["start"]
+            smoothed[-1] = segment
+
+    return merge_labeled_segments(smoothed, join_gap_seconds=0.05)
 
 
 def main() -> None:
@@ -174,7 +260,7 @@ def main() -> None:
             }
         )
 
-    merged = merge_labeled_segments(labeled_segments)
+    merged = build_non_overlapping_turns(labeled_segments, speech_regions)
     turns = []
     for index, segment in enumerate(merged, start=1):
         turns.append(
@@ -197,6 +283,7 @@ def main() -> None:
         "speech_region_count": len(speech_regions),
         "subsegment_count": len(subsegments),
         "estimated_embedding_delta_norm_mean": round(embedding_norm_mean, 4),
+        "raw_labeled_subsegment_count": len(labeled_segments),
         "turns": turns,
     }
     sys.stdout.write(json.dumps(payload))

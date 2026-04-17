@@ -2,6 +2,13 @@
 
 This document defines the intended architecture for Stage 2 after the stage-model reset.
 
+Current status:
+- `chronicle diarize <session_id>` is still not wired to a production backend
+- `chronicle benchmark-stage2 <session_id>` is the current evaluation entrypoint
+- Chronicle currently supports two benchmark backends:
+  - `pyannote`
+  - a custom SpeechBrain-style VAD + embedding + clustering spike
+
 ## Stage 2 goal
 
 Stage 2 should perform anonymous audio diarization.
@@ -65,6 +72,14 @@ The exact stack is not chosen yet, but the preferred structure is:
 
 If the chosen stack requires backend-specific modules, keep them separated rather than growing one large file.
 
+Current benchmark-oriented modules:
+- `src/chronicle/stage2/benchmark.py`
+  - Stage 2 sample extraction and separate-runtime orchestration
+- `src/chronicle/stage2/pyannote_spike_runner.py`
+  - pyannote benchmark backend
+- `src/chronicle/stage2/speechbrain_spike_runner.py`
+  - SpeechBrain-style benchmark backend
+
 ## What `chronicle diarize <session_id>` should eventually do
 
 Target flow:
@@ -93,9 +108,25 @@ Stage 1 and Stage 2 should both consume raw audio, but they answer different que
 
 These are parallel evidence layers that Stage 3 will reconcile.
 
+## Current benchmark findings
+
+Current backend roles:
+- `pyannote` is the reference-quality baseline
+- the refined SpeechBrain-style path is the current local-performance baseline
+
+On this machine, the early directional result is:
+- pyannote can produce cleaner fine-grained turns
+- SpeechBrain currently scales better on longer `30s` and `60s` CPU windows
+
+That means the next Stage 2 decision should be based on:
+- output quality review on representative windows
+- not runtime alone
+
 ## Current code-state note
 
-The current `src/chronicle/stage2/` package does not match this target architecture.
-It still contains the older text-first heuristic speaker-assignment logic.
+The old text-first heuristic speaker-assignment logic has already been moved out of Stage 2 and into Stage 3 ownership.
 
-That code should be migrated into future Stage 3 ownership before the new Stage 2 is implemented.
+What Stage 2 still lacks is:
+- a chosen production backend
+- stable Stage 2 artifact writers for `chronicle diarize`
+- integration of one benchmark backend into the real Stage 2 command path
