@@ -10,13 +10,14 @@ from rich.panel import Panel
 from rich.table import Table
 
 from ..exceptions import SessionValidationError, StageExecutionError
-from ..paths import DEFAULT_PARAKEET_MODEL_DIR, DEFAULT_PARTICIPANTS_FILE, ensure_output_dirs
+from ..paths import DEFAULT_PARAKEET_MODEL_DIR, DEFAULT_PARTICIPANTS_FILE, REPO_ROOT, ensure_output_dirs
 from ..session import require_valid_session
 from ..stage1.service import (
     DEFAULT_STAGE1_PARAKEET_MODEL,
     benchmark_parakeet_concurrency,
     benchmark_parakeet_chunk_sizes,
 )
+from ..stage2.benchmark import DEFAULT_STAGE2_PYANNOTE_MODEL, DEFAULT_STAGE2_VENV_PYTHON, run_stage2_pyannote_spike
 from ..utils import write_json
 from .common import console
 
@@ -241,3 +242,109 @@ def register(app: typer.Typer) -> None:
         benchmark_path = directories["runs"] / f"stage1-concurrency-benchmark.{started_at.strftime('%Y%m%dT%H%M%SZ')}.json"
         write_json(benchmark_path, result)
         console.print(f"Concurrency benchmark results: {benchmark_path.as_posix()}")
+
+    @app.command("benchmark-stage2")
+    def benchmark_stage2_command(
+        session_id: str = typer.Argument(..., help="Session folder name under inputs/sessions/."),
+        participants_file: Path = typer.Option(
+            DEFAULT_PARTICIPANTS_FILE,
+            "--participants-file",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+        ),
+        audio_file: str | None = typer.Option(
+            None,
+            "--audio-file",
+            help="Specific audio file entry from session.yaml to sample. Defaults to the first session audio file.",
+        ),
+        sample_seconds: int = typer.Option(
+            120,
+            "--sample-seconds",
+            help="Length in seconds for the local diarization sample window.",
+        ),
+        sample_start_seconds: float = typer.Option(
+            0.0,
+            "--sample-start-seconds",
+            help="Start offset in seconds for the sample window.",
+        ),
+        num_speakers: int | None = typer.Option(
+            None,
+            "--num-speakers",
+            help="Exact expected speaker count for the diarization run.",
+        ),
+        min_speakers: int | None = typer.Option(
+            None,
+            "--min-speakers",
+            help="Minimum speaker count hint for the diarization run.",
+        ),
+        max_speakers: int | None = typer.Option(
+            None,
+            "--max-speakers",
+            help="Maximum speaker count hint for the diarization run.",
+        ),
+        device: str = typer.Option("cpu", "--device", help="Execution device for the diarization spike."),
+        stage2_python: Path = typer.Option(
+            DEFAULT_STAGE2_VENV_PYTHON,
+            "--stage2-python",
+            file_okay=True,
+            dir_okay=False,
+            help="Python executable for the separate Chronicle-managed Stage 2 runtime.",
+        ),
+        model_name: str = typer.Option(
+            DEFAULT_STAGE2_PYANNOTE_MODEL,
+            "--model",
+            help="Pyannote model id used for the Stage 2 spike.",
+        ),
+        force: bool = typer.Option(False, "--force", help="Overwrite existing Stage 2 spike artifacts."),
+    ) -> None:
+        """Benchmark the Stage 2 pyannote diarization path on one local sample window."""
+        try:
+            manifest = require_valid_session(session_id, console, participants_file)
+        except SessionValidationError as exc:
+            raise typer.Exit(code=1) from exc
+
+        directories = ensure_output_dirs(manifest.session_id)
+        try:
+            with console.status("Running Stage 2 pyannote spike..."):
+                result = run_stage2_pyannote_spike(
+                    manifest=manifest,
+                    audio_file=audio_file,
+                    sample_seconds=sample_seconds,
+                    sample_start_seconds=sample_start_seconds,
+                    num_speakers=num_speakers,
+                    min_speakers=min_speakers,
+                    max_speakers=max_speakers,
+                    device=device,
+                    stage2_python=stage2_python,
+                    model_name=model_name,
+                    spike_dir=directories["stage2_spike"],
+                    force=force,
+                )
+        except StageExecutionError as exc:
+            console.print(Panel(str(exc), title="Stage 2 Spike Failed", style="red"))
+            raise typer.Exit(code=1) from exc
+
+        runner = result["runner"]
+        speakers = ", ".join(runner.get("speakers", [])) or "none"
+        table = Table(title="Stage 2 Spike")
+        table.add_column("Item", style="cyan")
+        table.add_column("Value", style="white")
+        table.add_row("Sample audio", str(result["sample_audio"]))
+        table.add_row("Sample start", f"{result['sample_start_seconds']}s")
+        table.add_row("Sample length", f"{result['sample_seconds']}s")
+        table.add_row("Load time", f"{runner['load_seconds']}s")
+        table.add_row("Run time", f"{runner['run_seconds']}s")
+        table.add_row("Wall time", f"{result['wall_seconds']}s")
+        table.add_row("Speakers", speakers)
+        table.add_row("Turns", str(runner["turn_count"]))
+        console.print(table)
+        console.print(
+            Panel(
+                (
+                    f"Stage 2 spike artifact written to "
+                    f"`{repo_relative(directories['stage2_spike'])}`."
+                ),
+                title="Stage 2 Spike Complete",
+            )
+        )

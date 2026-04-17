@@ -11,6 +11,7 @@ outputs/
 .conda-parakeet/
 .cache/
 models/
+tmp/
 __pycache__/
 *.py[cod]
 agent-context/
