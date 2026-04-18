@@ -79,7 +79,7 @@ Current code is mostly aligned with that command surface now. Today:
 - `identify` runs the migrated heuristic text-first logic under Stage 3
 - `organize` is scaffold-only
 
-So the command surface is aligned, but Stage 2 still needs backend hardening and Stage 3 still needs redesign around true Stage 2 inputs.
+So the command surface is aligned, Stage 2 has completed its first full production run, and the main remaining work is Stage 2 hardening plus Stage 3 redesign around true Stage 2 inputs.
 
 ## CLI architecture
 
@@ -130,6 +130,11 @@ Current code implements:
 - `stage2/` local anonymous diarization plus benchmark backends
 - `stage3/` migrated heuristic speaker-identification logic
 - `stage4/` scaffold-only organization planning helpers
+
+The first full production Stage 2 run has now completed for the current working session and wrote:
+- `stage2/diarization.json`
+- `stage2/diarization.md`
+- a new Stage 2 run metadata record under `outputs/<session_id>/runs/`
 
 ## Stage boundaries
 
@@ -241,7 +246,7 @@ This step is now complete:
 - old chronology scaffolding was moved forward into `src/chronicle/stage4/`
 - output directory expectations now include `stage4/`
 
-The next work is hardening the current Stage 2 backend and integrating it cleanly with Stage 3.
+The next work is inspecting Stage 2 output quality, hardening the current Stage 2 backend, and integrating it cleanly with Stage 3.
 
 ### Step 2: research and choose a local Stage 2 diarization stack
 

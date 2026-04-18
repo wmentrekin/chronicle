@@ -3,8 +3,8 @@
 This document defines the intended architecture for Stage 2 after the stage-model reset.
 
 Current status:
-- `chronicle diarize <session_id>` is still not wired to a production backend
-- `chronicle benchmark-stage2 <session_id>` is the current evaluation entrypoint
+- `chronicle diarize <session_id>` now uses the current SpeechBrain-backed production backend
+- `chronicle benchmark-stage2 <session_id>` remains the evaluation entrypoint
 - Chronicle currently supports two benchmark backends:
   - `pyannote`
   - a custom SpeechBrain-style VAD + embedding + clustering spike
@@ -57,38 +57,29 @@ Machine artifact should include:
 
 Markdown companion should be reviewable by a human and preserve the anonymous labels.
 
-## Intended module layout
-
-The exact stack is not chosen yet, but the preferred structure is:
+## Current module layout
 
 - `src/chronicle/stage2/service.py`
-  - Stage 2 orchestration only
-- `src/chronicle/stage2/audio.py`
-  - any Stage 2-specific audio preparation
-- `src/chronicle/stage2/diarizer.py`
-  - chosen diarization backend wrapper
+  - Stage 2 orchestration, per-file processing, progress callbacks
 - `src/chronicle/stage2/artifacts.py`
   - Stage 2 artifact writing and formatting
-
-If the chosen stack requires backend-specific modules, keep them separated rather than growing one large file.
-
-Current benchmark-oriented modules:
 - `src/chronicle/stage2/benchmark.py`
   - Stage 2 sample extraction and separate-runtime orchestration
 - `src/chronicle/stage2/pyannote_spike_runner.py`
   - pyannote benchmark backend
 - `src/chronicle/stage2/speechbrain_spike_runner.py`
-  - SpeechBrain-style benchmark backend
+  - SpeechBrain-style benchmark backend and current production backend runner
 
-## What `chronicle diarize <session_id>` should eventually do
+## What `chronicle diarize <session_id>` does now
 
-Target flow:
+Current flow:
 1. validate the session
 2. resolve the session audio files
-3. load diarization configuration or speaker-count hints if provided
-4. run anonymous speaker diarization over the audio
+3. process each source audio file through the SpeechBrain runner in a separate runtime
+4. offset anonymous turns into one session timeline
 5. write Stage 2 JSON and markdown artifacts with anonymous speaker labels
-6. record run metadata
+6. write partial checkpoints after each completed source file
+7. record run metadata
 
 ## Speaker-count guidance
 
@@ -126,7 +117,12 @@ That means the next Stage 2 decision should be based on:
 
 The old text-first heuristic speaker-assignment logic has already been moved out of Stage 2 and into Stage 3 ownership.
 
-What Stage 2 still lacks is:
-- a chosen production backend
+What Stage 2 now has:
+- a chosen current production backend for local use
 - stable Stage 2 artifact writers for `chronicle diarize`
-- integration of one benchmark backend into the real Stage 2 command path
+- benchmark backends for quality/performance comparison
+
+What still needs hardening:
+- cleanup of partial checkpoint files on successful completion
+- investigation of the lingering terminal-session behavior after successful runs
+- better long-file visibility while a single source file is still being diarized
