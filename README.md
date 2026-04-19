@@ -111,6 +111,12 @@ Run Stage 3:
 chronicle identify <session_id>
 ```
 
+By default, Stage 3 uses OpenAI to map anonymous diarized speakers to canonical session participants. Set `OPENAI_API_KEY` in `.env` or your shell before running it. For local review without OpenAI, use:
+
+```bash
+chronicle identify <session_id> --mode align-only
+```
+
 Prepare Stage 4:
 
 ```bash
@@ -132,5 +138,5 @@ chronicle run <session_id>
 - Stage 1 writes one session-level transcript artifact per session, even when the session contains multiple audio files.
 - `chronicle diarize` now uses the local SpeechBrain-based anonymous diarization path by default.
 - `benchmark-stage2` remains available for backend comparison against pyannote.
-- Stage 3 currently hosts the older heuristic speaker-identification logic while the new Stage 2 is being designed.
+- Stage 3 reconciles Stage 1 transcript output with Stage 2 anonymous diarization and supports `llm`, `manual`, and `align-only` modes.
 - Detailed implementation walkthroughs live under `docs/`.

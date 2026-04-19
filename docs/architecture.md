@@ -12,7 +12,7 @@ The intended architecture is now:
 3. Stage 3 speaker identification
 4. Stage 4 verbatim organization
 
-This is a change from the earlier 3-stage model. The old transcript-driven heuristic "semantic diarization" step is being reclassified as speaker identification logic and should move out of `stage2/` into a future `stage3/` implementation area.
+This is a change from the earlier 3-stage model. The old transcript-driven heuristic "semantic diarization" step has been superseded by a true Stage 2 anonymous diarization layer and a Stage 3 speaker-identification layer.
 
 ## Current repository structure
 
@@ -76,10 +76,10 @@ chronicle organize <session_id>
 Current code is mostly aligned with that command surface now. Today:
 - `transcribe` is real Stage 1
 - `diarize` uses the current local SpeechBrain-backed Stage 2 implementation
-- `identify` runs the migrated heuristic text-first logic under Stage 3
+- `identify` reconciles Stage 1 transcript segments with Stage 2 anonymous diarization and supports `llm`, `manual`, and `align-only` modes
 - `organize` is scaffold-only
 
-So the command surface is aligned, Stage 2 has completed its first full production run, and the main remaining work is Stage 2 hardening plus Stage 3 redesign around true Stage 2 inputs.
+So the command surface is aligned, Stage 2 has completed its first full production run, and Stage 3 now has the first true Stage 1 + Stage 2 speaker-identification implementation. The main remaining work is Stage 3 real-session evaluation and Stage 4 implementation.
 
 ## CLI architecture
 
@@ -128,7 +128,7 @@ Target layout:
 Current code implements:
 - `stage1/` transcription
 - `stage2/` local anonymous diarization plus benchmark backends
-- `stage3/` migrated heuristic speaker-identification logic
+- `stage3/` source-aware transcript/diarization reconciliation plus speaker identification
 - `stage4/` scaffold-only organization planning helpers
 
 The first full production Stage 2 run has now completed for the current working session and wrote:
@@ -186,23 +186,24 @@ Important boundary:
 
 ## Stage 3 architecture
 
-Stage 3 should become speaker identification and transcript reconciliation.
+Stage 3 is speaker identification and transcript reconciliation.
 
-Target purpose:
+Purpose:
 - combine Stage 1 transcript words with Stage 2 anonymous diarization turns
 - use participants metadata and session context to map anonymous speakers to canonical people
 - preserve uncertainty when mapping is weak
 
-Target inputs:
+Inputs:
 - Stage 1 transcript artifact
 - Stage 2 diarization artifact
 - `inputs/global/participants.yaml`
 - session `context.md`
 
-Expected implementation direction:
-- likely LLM-assisted
-- structured outputs
-- conservative identity assignment
+Current implementation:
+- default `llm` mode using OpenAI with `gpt-5.4-mini`
+- `manual` mode using a complete canonical participant speaker map
+- `align-only` mode for local anonymous alignment without OpenAI
+- schema-versioned JSON plus Markdown artifacts
 
 Important boundary:
 - Stage 3 should not do raw acoustic diarization
@@ -226,15 +227,15 @@ Target outputs:
 
 ## Current code state vs target architecture
 
-Current code now reflects the new numbering, and Stage 2 now has an initial production implementation:
+Current code now reflects the new numbering, and Stage 2/Stage 3 both have initial production implementations:
 - `src/chronicle/stage1/` is real transcription code
 - `src/chronicle/stage2/` now contains the current SpeechBrain-backed implementation plus benchmark tooling and backend spikes
-- `src/chronicle/stage3/` contains the migrated text-first heuristic speaker-identification logic
+- `src/chronicle/stage3/` contains source-aware Stage 1 + Stage 2 reconciliation and speaker-identification logic
 - `src/chronicle/stage4/` is scaffold-only organization planning
 
 That means the current code-state mapping is:
 - new Stage 2 is implemented as the current production `chronicle diarize` path using the SpeechBrain backend
-- current Stage 3 is transitional until it can consume true Stage 2 diarization artifacts
+- Stage 3 consumes `raw_transcript.json` and `diarization.json` and can run in `llm`, `manual`, or `align-only` mode
 
 ## Implementation plan
 
@@ -246,11 +247,11 @@ This step is now complete:
 - old chronology scaffolding was moved forward into `src/chronicle/stage4/`
 - output directory expectations now include `stage4/`
 
-The next work is inspecting Stage 2 output quality, hardening the current Stage 2 backend, and integrating it cleanly with Stage 3.
+The next work is evaluating Stage 3 output quality on real sessions and then implementing Stage 4.
 
 ### Step 2: research and choose a local Stage 2 diarization stack
 
-This step is now in progress.
+This step has produced the current baseline.
 
 Current findings:
 - `pyannote` remains the quality/reference baseline
@@ -266,18 +267,21 @@ Current benchmark direction on this machine:
 
 ### Step 3: define the Stage 2 artifact contract
 
-Decide the machine and markdown outputs for:
+The current Stage 2 artifact contract includes:
 - anonymous speaker labels
 - timestamps
-- overlap handling
-- diarization confidence and notes
+- source-relative and session-relative timing
+- model/runtime metadata
+- notes
 
-### Step 4: redesign current heuristic logic as Stage 3 identification
+### Step 4: implement Stage 3 identification
 
-After Stage 2 exists:
-- redesign the current text-first heuristic logic as identity reconciliation
-- combine Stage 1 transcript text and Stage 2 anonymous speaker turns
-- likely replace or augment heuristics with an LLM-assisted identifier
+This step has an initial implementation:
+- source-aware Stage 1 to Stage 2 alignment
+- manual speaker-map support
+- OpenAI-backed speaker mapping by default
+- local align-only mode for review
+- schema-versioned JSON and Markdown outputs
 
 ### Step 5: build Stage 4 organization on top of identified speakers
 
@@ -287,11 +291,11 @@ Only after Stage 3 is stable:
 
 ## Current recommendation
 
-Do not invest further in the current heuristic text-only Stage 2 as the long-term diarization solution.
+Do not reintroduce the old heuristic text-only Stage 2 as the long-term diarization solution.
 
 The current best direction is:
 1. keep Stage 1 largely as-is
-2. continue Stage 2 backend evaluation with pyannote and SpeechBrain-style spikes
-3. promote one backend into the real `chronicle diarize` path only after quality review
+2. keep SpeechBrain as the current local Stage 2 baseline while retaining pyannote benchmark comparison
+3. evaluate Stage 3 `align-only` and `llm` outputs on real sessions
 4. keep identity assignment in Stage 3
-5. keep Stage 4 focused on organization, not attribution
+5. implement Stage 4 organization on top of reviewed Stage 3 artifacts

@@ -105,12 +105,17 @@ Purpose:
 
 Current state:
 - this module now owns Stage 3 speaker identification
-- it runs the earlier heuristic text-first logic in its new Stage 3 home
+- it requires Stage 1 and Stage 2 artifacts
+- it exposes `--mode llm`, `--mode manual`, and `--mode align-only`
+- it accepts `--model` for OpenAI model selection in `llm` mode
+- it accepts `--speaker-map` for manual overrides or complete manual assignment
 - it also exposes the `run` status command
 
-Migration direction:
-- Stage 3 should keep owning `chronicle identify <session_id>`
-- its internals should later be redesigned to reconcile true Stage 2 diarization outputs
+Stage 3 CLI behavior:
+- default `llm` mode requires `OPENAI_API_KEY` and sends compact evidence/context metadata to OpenAI
+- `manual` mode runs locally when a complete valid speaker map is supplied
+- `align-only` mode runs locally and writes anonymous alignment artifacts rather than final identity artifacts
+- raw audio is never uploaded by Stage 3
 
 ### `src/chronicle/cli/stage4.py`
 
@@ -162,7 +167,7 @@ It delegates those responsibilities to the Stage 1 package.
 Chronicle is still in a transition period, but the command surface is now aligned with the 4-stage model:
 - `chronicle diarize` is now implemented with the current local SpeechBrain-backed Stage 2 backend
 - `chronicle benchmark-stage2` is the real current entrypoint for Stage 2 backend evaluation
-- `chronicle identify` is current Stage 3 and runs the migrated heuristic logic
+- `chronicle identify` is current Stage 3 and reconciles Stage 1 transcript artifacts with Stage 2 diarization artifacts
 - `chronicle organize` is Stage 4 naming and is scaffold-only
 
-The next implementation step is improving the current Stage 2 backend and integrating it cleanly with Stage 3.
+The next implementation step is real-session evaluation of Stage 3 outputs, then Stage 4 organization.

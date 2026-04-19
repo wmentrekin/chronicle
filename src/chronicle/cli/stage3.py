@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
 import typer
 from rich.panel import Panel
@@ -11,7 +12,7 @@ from rich.table import Table
 
 from ..exceptions import SessionValidationError, StageExecutionError
 from ..paths import DEFAULT_PARTICIPANTS_FILE, ensure_output_dirs, repo_relative, session_manifest_path
-from ..session import require_valid_session, resolve_audio_path, resolve_context_path
+from ..session import require_valid_session, resolve_context_path
 from ..stage3.service import execute_stage3
 from ..utils import write_run_metadata
 from .common import confirm_overwrite_if_needed, console, render_stage_plan
@@ -29,8 +30,22 @@ def register(app: typer.Typer) -> None:
             readable=True,
         ),
         force: bool = typer.Option(False, "--force", help="Overwrite existing stage 3 artifacts."),
+        mode: str = typer.Option("llm", "--mode", help="Stage 3 mode: llm, manual, or align-only."),
+        model: Optional[str] = typer.Option(
+            None,
+            "--model",
+            help="OpenAI model for llm mode. Overrides CHRONICLE_STAGE3_MODEL.",
+        ),
+        speaker_map: Optional[Path] = typer.Option(
+            None,
+            "--speaker-map",
+            exists=False,
+            dir_okay=False,
+            readable=True,
+            help="Manual speaker-map YAML for manual mode or llm overrides.",
+        ),
     ) -> None:
-        """Run Stage 3 speaker identification over the current Stage 1 transcript."""
+        """Run Stage 3 speaker identification over Stage 1 and Stage 2 outputs."""
         try:
             manifest = require_valid_session(session_id, console, participants_file)
         except SessionValidationError as exc:
@@ -38,26 +53,47 @@ def register(app: typer.Typer) -> None:
 
         directories = ensure_output_dirs(manifest.session_id)
         render_stage_plan(manifest, "stage3", directories)
+        output_names = (
+            ("aligned_transcript.json", "aligned_transcript.md")
+            if mode == "align-only"
+            else ("identified_conversation.json", "identified_conversation.md")
+        )
         force = confirm_overwrite_if_needed(
             stage_label="Stage 3",
             force=force,
             output_paths=[
-                directories["stage3"] / "identified_conversation.json",
-                directories["stage3"] / "identified_conversation.md",
+                directories["stage3"] / output_names[0],
+                directories["stage3"] / output_names[1],
             ],
         )
 
         started_at = datetime.now(timezone.utc)
         run_notes: list[str] = []
         output_paths: list[str] = []
+        stage_metadata: dict[str, object] = {}
         status = "failed"
         try:
-            output_paths, skipped_paths, stage_notes = execute_stage3(
+            if mode == "llm":
+                console.print(
+                    Panel(
+                        (
+                            "Stage 3 LLM mode may send transcript excerpts, evidence summaries, "
+                            "session context, and participant metadata to OpenAI. Raw audio is never uploaded."
+                        ),
+                        title="Stage 3 Privacy Notice",
+                    )
+                )
+            console.print("Loading Stage 1 and Stage 2 artifacts...")
+            output_paths, skipped_paths, stage_notes, stage_metadata = execute_stage3(
                 manifest=manifest,
                 stage1_dir=directories["stage1"],
+                stage2_dir=directories["stage2"],
                 stage3_dir=directories["stage3"],
                 participants_file=participants_file,
                 force=force,
+                mode=mode,
+                model=model,
+                speaker_map_path=speaker_map,
             )
             run_notes.extend(stage_notes)
             if skipped_paths and not output_paths:
@@ -89,17 +125,28 @@ def register(app: typer.Typer) -> None:
             console.print(Panel(str(exc), title="Stage 3 Failed", style="red"))
             raise typer.Exit(code=1) from exc
         finally:
+            input_paths = [
+                repo_relative(Path(manifest.manifest_path or session_manifest_path(manifest.session_id))),
+                repo_relative(resolve_context_path(manifest)),
+                repo_relative(participants_file),
+                repo_relative(directories["stage1"] / "raw_transcript.json"),
+                repo_relative(directories["stage2"] / "diarization.json"),
+            ]
+            if speaker_map is not None:
+                input_paths.append(repo_relative(speaker_map))
             run_path = write_run_metadata(
                 runs_dir=directories["runs"],
                 stage_name="stage3",
                 status=status,
-                input_paths=[repo_relative(Path(manifest.manifest_path or session_manifest_path(manifest.session_id)))]
-                + [repo_relative(resolve_context_path(manifest))]
-                + [repo_relative(resolve_audio_path(manifest, audio_file)) for audio_file in manifest.audio_files],
+                input_paths=input_paths,
                 output_paths=output_paths,
                 config={
                     "force": force,
+                    "mode": mode,
+                    "model": model,
+                    "speaker_map": repo_relative(speaker_map) if speaker_map else None,
                     "participants_file": repo_relative(participants_file),
+                    "stage3": stage_metadata,
                 },
                 notes=run_notes,
                 started_at=started_at,

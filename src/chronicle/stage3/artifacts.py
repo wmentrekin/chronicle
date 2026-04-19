@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
-from ..session import SessionManifest
+from ..utils import write_json
 
 
 def stage3_output_paths(stage_dir: Path) -> tuple[Path, Path]:
@@ -15,46 +15,84 @@ def stage3_output_paths(stage_dir: Path) -> tuple[Path, Path]:
     )
 
 
-def write_stage3_markdown(
-    path: Path,
-    manifest: SessionManifest,
-    artifact: dict[str, Any],
-) -> None:
+def stage3_align_only_output_paths(stage_dir: Path) -> tuple[Path, Path]:
+    return (
+        stage_dir / "aligned_transcript.json",
+        stage_dir / "aligned_transcript.md",
+    )
+
+
+def output_paths_for_mode(stage_dir: Path, mode: str) -> tuple[Path, Path]:
+    if mode == "align-only":
+        return stage3_align_only_output_paths(stage_dir)
+    return stage3_output_paths(stage_dir)
+
+
+def write_stage3_artifacts(*, stage_dir: Path, mode: str, artifact: dict[str, Any]) -> list[Path]:
+    json_path, markdown_path = output_paths_for_mode(stage_dir, mode)
+    write_json(json_path, artifact)
+    markdown_path.write_text(render_stage3_markdown(artifact), encoding="utf-8")
+    return [json_path, markdown_path]
+
+
+def render_stage3_markdown(artifact: dict[str, Any]) -> str:
+    align_only = artifact.get("mode") == "align-only"
+    title = "Aligned Transcript" if align_only else "Identified Conversation"
     lines = [
-        "# Identified Conversation",
+        f"# {title}",
         "",
-        f"- **Session ID:** {manifest.session_id}",
-        f"- **Stage:** {artifact['stage']}",
-        "",
-        "## Transcript",
+        f"- **Session ID:** {artifact['session_id']}",
+        f"- **Mode:** {artifact['mode']}",
+        f"- **Source Stage 1:** {artifact['source_stage1_artifact']}",
+        f"- **Source Stage 2:** {artifact['source_stage2_artifact']}",
         "",
     ]
 
-    current_audio: Optional[str] = None
-    for block in artifact["blocks"]:
-        if block["source_audio"] != current_audio:
-            current_audio = block["source_audio"]
+    if not align_only:
+        lines.extend(["## Speaker Map", ""])
+        for entry in artifact.get("speaker_map", []):
+            lines.append(
+                f"- `{entry['speaker_label']}`: {entry['assigned_person']} `[{entry['confidence']}]`"
+            )
+        lines.append("")
+
+    lines.extend(["## Transcript", ""])
+    current_audio: str | None = None
+    for block in artifact.get("blocks", []):
+        source_audio = block.get("source_audio")
+        if source_audio != current_audio:
+            current_audio = source_audio
             lines.extend([f"### {current_audio}", ""])
 
+        speaker_label = block.get("speaker_label")
+        candidates = block.get("speaker_label_candidates") or []
+        label_text = speaker_label or " / ".join(candidates) or "UNKNOWN_ANONYMOUS"
         timestamp = ""
         if block.get("start_time") and block.get("end_time"):
-            timestamp = f" [{block['start_time']} - {block['end_time']}]"
-        lines.append(f"**{block['speaker']}** `[{block['confidence']}]`{timestamp}")
-        lines.append(block["text"] or "[inaudible]")
-        lines.append("")
-        if block.get("candidate_speakers"):
-            lines.append("Candidate speakers: " + ", ".join(block["candidate_speakers"]))
+            timestamp = f"`[{block['start_time']} - {block['end_time']}]`"
+
+        if align_only:
+            speaker_text = "Anonymous speaker"
+            confidence = block.get("alignment", {}).get("alignment_confidence", block.get("confidence"))
+            lines.append(f"**{speaker_text}** `[{confidence} alignment]` `{label_text}` {timestamp}".rstrip())
+        else:
+            speaker_text = block.get("speaker") or "Needs review"
+            lines.append(
+                f"**{speaker_text}** `[{block.get('confidence', 'Needs review')}]` `{label_text}` {timestamp}".rstrip()
+            )
+
+        lines.append(block.get("text") or "[inaudible]")
+        if block.get("candidate_people"):
             lines.append("")
+            lines.append("Candidate people: " + ", ".join(block["candidate_people"]))
         if block.get("notes"):
-            lines.append("Notes:")
-            for note in block["notes"]:
-                lines.append(f"- {note}")
             lines.append("")
+            lines.append("Notes: " + "; ".join(block["notes"]))
+        lines.append("")
 
     if artifact.get("notes"):
         lines.extend(["## Notes", ""])
         for note in artifact["notes"]:
             lines.append(f"- {note}")
 
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+    return "\n".join(lines).rstrip() + "\n"
