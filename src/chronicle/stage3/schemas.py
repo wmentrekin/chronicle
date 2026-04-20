@@ -7,7 +7,7 @@ from typing import Any
 
 SCHEMA_VERSION = "1.0"
 PROMPT_VERSION = "stage3-speaker-map-v1"
-DEFAULT_MODEL = "gpt-5.4-mini"
+DEFAULT_MODEL = "qwen3:8b"
 DEFAULT_MAX_INPUT_TOKENS = 12_000
 DEFAULT_MAX_OUTPUT_TOKENS = 1_200
 DEFAULT_MAX_EVIDENCE_EXAMPLES_PER_SPEAKER = 12
@@ -26,7 +26,7 @@ MERGE_GAP_SECONDS = 2.0
 
 def empty_llm_usage(model: str, notes: list[str] | None = None) -> dict[str, Any]:
     return {
-        "provider": "openai",
+        "provider": "ollama",
         "model": model,
         "prompt_version": PROMPT_VERSION,
         "schema_version": SCHEMA_VERSION,

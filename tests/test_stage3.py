@@ -10,6 +10,11 @@ from chronicle.stage3.alignment import align_transcript_to_diarization
 from chronicle.stage3.artifacts import render_stage3_markdown
 from chronicle.stage3.identity import normalize_llm_entries
 from chronicle.stage3.inputs import load_stage2_artifact
+from chronicle.stage3.llm import (
+    require_ollama_config,
+    resolve_stage3_model,
+    run_ollama_speaker_mapping,
+)
 from chronicle.stage3.manual import validate_manual_speaker_map
 
 
@@ -131,6 +136,61 @@ def test_invalid_llm_assignment_outside_manifest_fails() -> None:
             participants=["Pat Example"],
             manual_entries=[],
         )
+
+
+def test_stage3_llm_default_model_is_local_ollama_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("CHRONICLE_STAGE3_MODEL", raising=False)
+    assert resolve_stage3_model(None) == "qwen3:8b"
+
+
+def test_missing_ollama_model_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("chronicle.stage3.llm.list_ollama_models", lambda: {"llama3.1:8b"})
+    with pytest.raises(StageExecutionError, match="requires a local Ollama model"):
+        require_ollama_config("qwen3:8b")
+
+
+def test_ollama_speaker_mapping_uses_fake_local_api(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("chronicle.stage3.llm.list_ollama_models", lambda: {"qwen3:8b"})
+
+    requests: list[tuple[str, dict[str, object]]] = []
+
+    def fake_post(path: str, payload: dict[str, object], *, timeout: int = 120) -> dict[str, object]:
+        requests.append((path, payload))
+        return {
+            "message": {
+                "content": (
+                    '{"speaker_map": ['
+                    '{"speaker_label": "SPEAKER_00", "assigned_person": "Pat Example", '
+                    '"confidence": "Likely", "candidate_people": ["Pat Example"]}'
+                    "]}"
+                )
+            },
+            "prompt_eval_count": 42,
+            "eval_count": 18,
+        }
+
+    monkeypatch.setattr("chronicle.stage3.llm._ollama_post_json", fake_post)
+    speaker_map, usage = run_ollama_speaker_mapping(
+        manifest=manifest(),
+        context_text="Family interview context.",
+        participants_by_name={"Pat Example": {}, "Bill Example": {}},
+        evidence_summary={
+            "SPEAKER_00": {
+                "total_blocks": 1,
+                "examples": [{"text": "Hello there."}],
+            }
+        },
+        manual_entries=[],
+        model="qwen3:8b",
+    )
+
+    assert speaker_map[0]["assigned_person"] == "Pat Example"
+    assert usage["provider"] == "ollama"
+    assert usage["model"] == "qwen3:8b"
+    assert usage["input_tokens"] == 42
+    assert usage["output_tokens"] == 18
+    assert requests[0][0] == "/api/chat"
+    assert requests[0][1]["format"] == "json"
 
 
 def test_markdown_rendering_from_json() -> None:

@@ -1,8 +1,9 @@
-"""Versioned OpenAI prompt construction for Stage 3."""
+"""Versioned LLM prompt construction for Stage 3."""
 
 from __future__ import annotations
 
 import json
+from datetime import date, datetime
 from typing import Any
 
 from ..session import SessionManifest
@@ -59,10 +60,24 @@ def build_speaker_map_prompt(
     }
     return [
         {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": json.dumps(payload, ensure_ascii=True, indent=2)},
+        {"role": "user", "content": json.dumps(_json_safe(payload), ensure_ascii=True, indent=2)},
     ]
 
 
 def estimate_tokens(messages: list[dict[str, str]]) -> int:
     # Conservative rough estimate; exact accounting is recorded from the provider when available.
     return max(1, sum(len(message.get("content", "")) for message in messages) // 4)
+
+
+def _json_safe(value: Any) -> Any:
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, tuple):
+        return [_json_safe(item) for item in value]
+    return value

@@ -111,7 +111,7 @@ Run Stage 3:
 chronicle identify <session_id>
 ```
 
-By default, Stage 3 uses OpenAI to map anonymous diarized speakers to canonical session participants. Set `OPENAI_API_KEY` in `.env` or your shell before running it. For local review without OpenAI, use:
+By default, Stage 3 uses local Ollama with `qwen3:8b` to map anonymous diarized speakers to canonical session participants. Run `chronicle init` or `ollama pull qwen3:8b` before using default `llm` mode. Transcript excerpts, evidence summaries, session context, and participant metadata stay on this machine. For anonymous alignment only, use:
 
 ```bash
 chronicle identify <session_id> --mode align-only

@@ -34,7 +34,7 @@ def register(app: typer.Typer) -> None:
         model: Optional[str] = typer.Option(
             None,
             "--model",
-            help="OpenAI model for llm mode. Overrides CHRONICLE_STAGE3_MODEL.",
+            help="Ollama model for llm mode. Overrides CHRONICLE_STAGE3_MODEL.",
         ),
         speaker_map: Optional[Path] = typer.Option(
             None,
@@ -77,8 +77,8 @@ def register(app: typer.Typer) -> None:
                 console.print(
                     Panel(
                         (
-                            "Stage 3 LLM mode may send transcript excerpts, evidence summaries, "
-                            "session context, and participant metadata to OpenAI. Raw audio is never uploaded."
+                            "Stage 3 LLM mode uses local Ollama. Transcript excerpts, evidence summaries, "
+                            "session context, and participant metadata stay on this machine."
                         ),
                         title="Stage 3 Privacy Notice",
                     )

@@ -200,9 +200,9 @@ Inputs:
 - session `context.md`
 
 Current implementation:
-- default `llm` mode using OpenAI with `gpt-5.4-mini`
+- default `llm` mode using local Ollama with `qwen3:8b`
 - `manual` mode using a complete canonical participant speaker map
-- `align-only` mode for local anonymous alignment without OpenAI
+- `align-only` mode for local anonymous alignment without Ollama
 - schema-versioned JSON plus Markdown artifacts
 
 Important boundary:
@@ -279,7 +279,7 @@ The current Stage 2 artifact contract includes:
 This step has an initial implementation:
 - source-aware Stage 1 to Stage 2 alignment
 - manual speaker-map support
-- OpenAI-backed speaker mapping by default
+- local Ollama-backed speaker mapping by default
 - local align-only mode for review
 - schema-versioned JSON and Markdown outputs
 

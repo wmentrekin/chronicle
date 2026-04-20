@@ -27,9 +27,9 @@ Model precedence in `llm` mode:
 
 1. `--model <model-name>`
 2. `CHRONICLE_STAGE3_MODEL`
-3. built-in default `gpt-5.4-mini`
+3. built-in default `qwen3:8b`
 
-`llm` mode requires `OPENAI_API_KEY`. If the key is missing, Chronicle fails before writing final identity artifacts and prints setup instructions. `align-only` and complete `manual` mode do not call OpenAI.
+`llm` mode requires a running local Ollama service and the selected model in Ollama's local model store. If Ollama is unavailable or the model is missing, Chronicle fails before writing final identity artifacts and prints setup instructions. `chronicle init` checks for the default Stage 3 Ollama model and prompts before pulling it when run interactively. `align-only` and complete `manual` mode do not call Ollama.
 
 ## Inputs
 
@@ -109,12 +109,12 @@ Each block preserves:
 4. Mark boundary-crossing or weak-overlap segments as `Needs review` instead of forcing attribution.
 5. Build deterministic per-speaker evidence summaries.
 6. Validate manual speaker-map overrides if provided.
-7. In `llm` mode, send compact evidence, context excerpts, and participant metadata to OpenAI for speaker-label mapping.
+7. In `llm` mode, send compact evidence, context excerpts, and participant metadata to local Ollama for speaker-label mapping.
 8. Validate all assignments against `manifest.participants`.
 9. Apply the speaker map deterministically to aligned blocks.
 10. Write JSON, Markdown, and run metadata.
 
-Raw audio is never uploaded to OpenAI.
+Raw audio is never sent to Ollama. Stage 3 LLM evidence stays local because Ollama runs on the user's machine.
 
 ## Module Layout
 
@@ -123,7 +123,7 @@ Raw audio is never uploaded to OpenAI.
 - `alignment.py`: source-aware timestamp alignment and ambiguity handling
 - `evidence.py`: deterministic speaker evidence summaries
 - `manual.py`: manual speaker-map loading and validation
-- `llm.py`: OpenAI configuration, model precedence, request execution, and usage metadata
+- `llm.py`: Ollama configuration, model precedence, request execution, setup checks, and usage metadata
 - `prompts.py`: versioned prompt construction
 - `identity.py`: speaker-map validation and block-level identity application
 - `artifacts.py`: output paths and Markdown rendering

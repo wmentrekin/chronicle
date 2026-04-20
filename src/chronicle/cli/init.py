@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import typer
@@ -10,6 +11,8 @@ from rich.panel import Panel
 from ..exceptions import StageExecutionError
 from ..paths import DEFAULT_PARAKEET_MODEL_DIR, repo_relative
 from ..stage1.service import DEFAULT_STAGE1_PARAKEET_MODEL, ensure_local_parakeet_model
+from ..stage3.llm import DEFAULT_MODEL as DEFAULT_STAGE3_OLLAMA_MODEL
+from ..stage3.llm import list_ollama_models, pull_ollama_model, resolve_stage3_model
 from .common import console, install_chronicle_link
 
 
@@ -35,6 +38,19 @@ def register(app: typer.Typer) -> None:
             False,
             "--skip-model-download",
             help="Skip fetching the managed local Parakeet model and only validate the local runtime.",
+        ),
+        stage3_model: str | None = typer.Option(
+            None,
+            "--stage3-model",
+            help=(
+                "Ollama model to validate or pull for Stage 3 speaker identification. "
+                f"Defaults to CHRONICLE_STAGE3_MODEL or `{DEFAULT_STAGE3_OLLAMA_MODEL}`."
+            ),
+        ),
+        skip_ollama_setup: bool = typer.Option(
+            False,
+            "--skip-ollama-setup",
+            help="Skip local Ollama model validation for Stage 3.",
         ),
         install_link: bool = typer.Option(
             False,
@@ -64,6 +80,56 @@ def register(app: typer.Typer) -> None:
                 Panel(
                     f"Parakeet model files are available at `{repo_relative(resolved)}`.",
                     title="Model Ready",
+                )
+            )
+
+        if not skip_ollama_setup:
+            resolved_stage3_model = resolve_stage3_model(stage3_model)
+            try:
+                available_models = list_ollama_models()
+            except StageExecutionError as exc:
+                console.print(Panel(str(exc), title="Ollama Setup Failed", style="red"))
+                raise typer.Exit(code=1) from exc
+
+            if resolved_stage3_model not in available_models:
+                if not sys.stdin.isatty():
+                    console.print(
+                        Panel(
+                            (
+                                f"Ollama model `{resolved_stage3_model}` is not installed and this shell is non-interactive.\n"
+                                f"Run `ollama pull {resolved_stage3_model}` or rerun `chronicle init` in an interactive shell."
+                            ),
+                            title="Ollama Model Missing",
+                            style="red",
+                        )
+                    )
+                    raise typer.Exit(code=1)
+                should_pull = typer.confirm(
+                    f"Ollama model `{resolved_stage3_model}` is not installed. Pull it now?",
+                    default=True,
+                )
+                if not should_pull:
+                    console.print(
+                        Panel(
+                            f"Ollama model `{resolved_stage3_model}` is required for default Stage 3 `llm` mode.",
+                            title="Ollama Model Missing",
+                            style="red",
+                        )
+                    )
+                    raise typer.Exit(code=1)
+                try:
+                    pull_ollama_model(resolved_stage3_model)
+                except StageExecutionError as exc:
+                    console.print(Panel(str(exc), title="Ollama Pull Failed", style="red"))
+                    raise typer.Exit(code=1) from exc
+
+            console.print(
+                Panel(
+                    (
+                        f"Ollama model `{resolved_stage3_model}` is available in Ollama's local model store. "
+                        "Chronicle does not copy Ollama models into repo storage."
+                    ),
+                    title="Stage 3 Model Ready",
                 )
             )
 

@@ -13,7 +13,7 @@ from .artifacts import output_paths_for_mode, write_stage3_artifacts
 from .evidence import build_evidence_summary
 from .identity import apply_speaker_map_to_blocks, normalize_llm_entries, validate_speaker_count
 from .inputs import load_stage3_inputs
-from .llm import require_openai_config, resolve_stage3_model, run_openai_speaker_mapping
+from .llm import require_ollama_config, resolve_stage3_model, run_ollama_speaker_mapping
 from .manual import load_manual_speaker_map, validate_manual_speaker_map
 from .schemas import MODES, SCHEMA_VERSION, empty_llm_usage
 
@@ -41,7 +41,7 @@ def execute_stage3(
 
     resolved_model = resolve_stage3_model(model)
     if mode == "llm":
-        require_openai_config(resolved_model)
+        require_ollama_config(resolved_model)
 
     inputs = load_stage3_inputs(
         manifest=manifest,
@@ -82,7 +82,7 @@ def execute_stage3(
         speaker_map = manual_entries
         blocks = apply_speaker_map_to_blocks(blocks=aligned_blocks, speaker_map=speaker_map)
     else:
-        raw_llm_entries, llm_usage = run_openai_speaker_mapping(
+        raw_llm_entries, llm_usage = run_ollama_speaker_mapping(
             manifest=manifest,
             context_text=inputs.context_text,
             participants_by_name=inputs.participants_by_name,
@@ -121,7 +121,7 @@ def execute_stage3(
     metadata = {
         "mode": mode,
         "model": resolved_model if mode == "llm" else None,
-        "provider": "openai" if mode == "llm" else None,
+        "provider": "ollama" if mode == "llm" else None,
         "prompt_version": artifact["llm_usage"]["prompt_version"] if artifact["llm_usage"] else None,
         "schema_version": SCHEMA_VERSION,
         "source_stage1_artifact": repo_relative(inputs.stage1_path),

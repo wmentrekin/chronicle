@@ -33,7 +33,7 @@ def normalize_llm_entries(
     normalized: list[dict[str, Any]] = []
     for raw_entry in raw_entries:
         if not isinstance(raw_entry, dict):
-            raise StageExecutionError("OpenAI speaker-map entries must be JSON objects.")
+            raise StageExecutionError("LLM speaker-map entries must be JSON objects.")
         speaker_label = str(raw_entry.get("speaker_label") or "")
         if speaker_label in manual_labels:
             continue

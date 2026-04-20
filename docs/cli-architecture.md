@@ -107,15 +107,15 @@ Current state:
 - this module now owns Stage 3 speaker identification
 - it requires Stage 1 and Stage 2 artifacts
 - it exposes `--mode llm`, `--mode manual`, and `--mode align-only`
-- it accepts `--model` for OpenAI model selection in `llm` mode
+- it accepts `--model` for Ollama model selection in `llm` mode
 - it accepts `--speaker-map` for manual overrides or complete manual assignment
 - it also exposes the `run` status command
 
 Stage 3 CLI behavior:
-- default `llm` mode requires `OPENAI_API_KEY` and sends compact evidence/context metadata to OpenAI
+- default `llm` mode requires local Ollama and sends compact evidence/context metadata to the local Ollama API
 - `manual` mode runs locally when a complete valid speaker map is supplied
 - `align-only` mode runs locally and writes anonymous alignment artifacts rather than final identity artifacts
-- raw audio is never uploaded by Stage 3
+- raw/private Stage 3 evidence stays on the user's machine
 
 ### `src/chronicle/cli/stage4.py`
 
