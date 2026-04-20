@@ -11,6 +11,7 @@ outputs/
 .venv-stage2/
 .venv-stage2-speechbrain/
 .conda-parakeet/
+.pytest_cache/
 .cache/
 models/
 tmp/

@@ -19,7 +19,7 @@ from .schemas import (
 )
 
 DEFAULT_OLLAMA_HOST = "http://127.0.0.1:11434"
-OLLAMA_REQUEST_TIMEOUT_SECONDS = 120
+DEFAULT_OLLAMA_REQUEST_TIMEOUT_SECONDS = 600
 OLLAMA_PULL_TIMEOUT_SECONDS = 1800
 
 
@@ -43,6 +43,10 @@ def resolve_max_input_tokens() -> int:
 
 def resolve_max_output_tokens() -> int:
     return _env_int("CHRONICLE_STAGE3_MAX_OUTPUT_TOKENS", DEFAULT_MAX_OUTPUT_TOKENS)
+
+
+def resolve_ollama_request_timeout() -> int:
+    return _env_int("CHRONICLE_OLLAMA_REQUEST_TIMEOUT_SECONDS", DEFAULT_OLLAMA_REQUEST_TIMEOUT_SECONDS)
 
 
 def _env_int(name: str, default: int) -> int:
@@ -129,6 +133,7 @@ def run_ollama_speaker_mapping(
         {
             "model": model,
             "messages": messages,
+            "think": False,
             "stream": False,
             "format": "json",
             "options": {
@@ -157,14 +162,14 @@ def run_ollama_speaker_mapping(
 
 def _ollama_get_json(path: str) -> dict[str, Any]:
     request = Request(f"{resolve_ollama_host()}{path}", method="GET")
-    return _send_ollama_request(request, timeout=OLLAMA_REQUEST_TIMEOUT_SECONDS)
+    return _send_ollama_request(request, timeout=resolve_ollama_request_timeout())
 
 
 def _ollama_post_json(
     path: str,
     payload: dict[str, Any],
     *,
-    timeout: int = OLLAMA_REQUEST_TIMEOUT_SECONDS,
+    timeout: int | None = None,
 ) -> dict[str, Any]:
     request = Request(
         f"{resolve_ollama_host()}{path}",
@@ -172,7 +177,7 @@ def _ollama_post_json(
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    return _send_ollama_request(request, timeout=timeout)
+    return _send_ollama_request(request, timeout=timeout or resolve_ollama_request_timeout())
 
 
 def _send_ollama_request(request: Request, *, timeout: int) -> dict[str, Any]:

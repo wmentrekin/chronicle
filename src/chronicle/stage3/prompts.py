@@ -43,7 +43,7 @@ def build_speaker_map_prompt(
         },
         "candidate_people": candidate_people,
         "people_likely_discussed": manifest.people_likely_discussed,
-        "context_excerpt": context_text[:6000],
+        "context_excerpt": context_text[:3000],
         "manual_assignments": manual_entries,
         "anonymous_speakers": [
             {"speaker_label": label, **summary}
