@@ -19,5 +19,4 @@ pretrained_models/
 pretrained_model_checkpoints/
 __pycache__/
 *.py[cod]
-agent-context/
 examples/outputs/
