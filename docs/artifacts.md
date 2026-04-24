@@ -112,6 +112,7 @@ Current JSON fields:
 - `schema_version`
 - `session_id`
 - `mode`
+- `backend`
 - `source_stage1_artifact`
 - `source_stage2_artifact`
 - `participants_file`
@@ -120,8 +121,15 @@ Current JSON fields:
 - `evidence_summary`
 - `alignment_summary`
 - `blocks`
+- `backend_usage`
 - `llm_usage`
 - `notes`
+
+Field notes:
+
+- `backend` is set for automatic Stage 3 runs and records the selected backend id.
+- `backend_usage` is backend-specific metadata for automatic runs. Current implementations use it for items such as provider/model details, workflow/reference mode, assignment counts, token summaries, or enrollment coverage.
+- `llm_usage` is present only for backends that invoke local Ollama.
 
 Current speaker-map entries:
 
@@ -151,6 +159,55 @@ Current block entries:
 - `alignment`
 - `notes`
 
+## Stage 3 benchmark reports
+
+Paths:
+
+```text
+outputs/<session_id>/runs/stage3-benchmark.<timestamp>.json
+outputs/<session_id>/runs/stage3-benchmark.<timestamp>.md
+outputs/<session_id>/runs/stage3-benchmark.<timestamp>/<backend>/stage3/...
+```
+
+Current benchmark JSON fields:
+
+- `stage`
+- `session_id`
+- `truth_file`
+- `participants_file`
+- `backends`
+- `cpu_feasibility_notes`
+- `benchmark_root`
+- `results`
+- `recommendation`
+
+Current per-backend result fields:
+
+- `backend`
+- `status`
+- `runtime_seconds`
+- `step_runtimes`
+- `output_paths`
+- `notes`
+- `backend_usage`
+- `llm_usage`
+- `enrollment_coverage`
+- `cpu_feasibility_notes`
+- `correct_assignments`
+- `total_assignments`
+- `exact_assignment_accuracy`
+- `mismatches`
+- `error`
+
+Current recommendation fields:
+
+- `recommended_backend`
+- `basis`
+- `compared_backends`
+- `tie_threshold_percentage_points`
+- `winning_accuracy`
+- `winning_runtime_seconds`
+
 ## Stage 4
 
 Stage 4 does not yet have a stable public artifact contract. The current `organize` command only validates the session and reserves the Stage 4 output directory.
@@ -160,4 +217,3 @@ Stage 4 does not yet have a stable public artifact contract. The current `organi
 - Markdown files are derived views for review.
 - JSON files remain the authoritative artifacts for downstream stages.
 - Stage boundaries should be preserved: Stage 1 writes transcription, Stage 2 writes anonymous turns, Stage 3 writes identification, and Stage 4 is still scaffold-only.
-

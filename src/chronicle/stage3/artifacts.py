@@ -48,6 +48,16 @@ def render_stage3_markdown(artifact: dict[str, Any]) -> str:
         "",
     ]
 
+    backend = artifact.get("backend")
+    if backend:
+        lines.extend([f"- **Backend:** {backend}"])
+        backend_usage = artifact.get("backend_usage") or {}
+        if backend_usage.get("provider"):
+            lines.append(f"- **Backend Provider:** {backend_usage['provider']}")
+        if backend_usage.get("model"):
+            lines.append(f"- **Backend Model:** {backend_usage['model']}")
+        lines.append("")
+
     if not align_only:
         lines.extend(["## Speaker Map", ""])
         for entry in artifact.get("speaker_map", []):

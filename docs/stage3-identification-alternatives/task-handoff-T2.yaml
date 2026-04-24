@@ -1,0 +1,48 @@
+# Contract: task handoff from /implement to developer agents
+
+artifact: task_handoff
+feature: "stage3-identification-alternatives"
+task_id: "T2"
+owner_skill: implement
+
+objective: "Add deterministic Stage 3 enrollment and embedding-preparation utilities for participant reference clips and anonymous speaker audio slices, including local cache-key generation and optional SpeechBrain-backed embedding extraction."
+why_this_matters: "T2 establishes the shared filesystem and runtime contract for later SpeechBrain backends. Without deterministic enrollment loading, speaker-slice preparation, and cache semantics, T3 and T4 would have to guess how audio-derived evidence is produced and stored."
+
+inputs:
+  requirements: "docs/stage3-identification-alternatives/requirements.yaml"
+  plan: "docs/stage3-identification-alternatives/plan.yaml"
+  relevant_paths:
+    - "src/chronicle/stage3/inputs.py"
+    - "src/chronicle/stage1/audio.py"
+    - "src/chronicle/stage2/speechbrain_spike_runner.py"
+    - "tests/test_stage3.py"
+
+scope:
+  owned:
+    - "src/chronicle/stage3/"
+    - "tests/test_stage3.py"
+  forbidden:
+    - "src/chronicle/stage1/"
+    - "src/chronicle/stage2/"
+    - "src/chronicle/cli/"
+    - "docs/"
+    - "examples/"
+    - "Benchmark and backend-matching logic from later tasks"
+
+implementation_notes:
+  - "Create bounded Stage 3 utility modules rather than expanding CLI or backend wiring."
+  - "Use filesystem contracts only: reference clips are resolved from participant metadata and speaker slices are derived from Stage 2 turns plus source audio on disk."
+  - "Cache material must live under untracked output or run directories only; do not write tracked files."
+  - "Keep SpeechBrain loading optional and fail with explicit guidance if dependencies are unavailable."
+  - "Favor deterministic ordering, stable cache keys, and injectable embedding extraction so tests do not need a real SpeechBrain runtime."
+
+validation_expected:
+  - "Unit tests for missing or invalid reference audio."
+  - "Unit tests for deterministic cache-key generation and ordering."
+  - "Smoke-style test that embedding generation writes only to untracked output/run storage."
+
+escalate_if:
+  - missing_context
+  - conflicting_artifacts
+  - product_or_architecture_guess_required
+  - scope_expansion_required

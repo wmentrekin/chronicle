@@ -10,11 +10,12 @@ from urllib.request import Request, urlopen
 
 from ..exceptions import StageExecutionError
 from ..session import SessionManifest
-from .prompts import build_speaker_map_prompt, estimate_tokens
+from .prompts import build_speaker_map_prompt, build_speaker_tiebreak_prompt, estimate_tokens
 from .schemas import (
     DEFAULT_MAX_INPUT_TOKENS,
     DEFAULT_MAX_OUTPUT_TOKENS,
     DEFAULT_MODEL,
+    build_ollama_backend_usage,
     empty_llm_usage,
 )
 
@@ -109,7 +110,6 @@ def run_ollama_speaker_mapping(
     manual_entries: list[dict[str, Any]],
     model: str,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    require_ollama_config(model)
     messages = build_speaker_map_prompt(
         manifest=manifest,
         context_text=context_text,
@@ -117,6 +117,61 @@ def run_ollama_speaker_mapping(
         evidence_summary=evidence_summary,
         manual_entries=manual_entries,
     )
+    return _run_ollama_json_messages(messages=messages, model=model)
+
+
+def run_ollama_decomposed_backend(
+    *,
+    manifest: SessionManifest,
+    context_text: str,
+    participants_by_name: dict[str, dict[str, Any]],
+    evidence_summary: dict[str, Any],
+    manual_entries: list[dict[str, Any]],
+    model: str,
+) -> tuple[list[dict[str, Any]], dict[str, Any], dict[str, Any]]:
+    speaker_map, llm_usage = run_ollama_speaker_mapping(
+        manifest=manifest,
+        context_text=context_text,
+        participants_by_name=participants_by_name,
+        evidence_summary=evidence_summary,
+        manual_entries=manual_entries,
+        model=model,
+    )
+    backend_usage = build_ollama_backend_usage(
+        model=model,
+        llm_usage=llm_usage,
+        manual_entries=manual_entries,
+        evidence_summary=evidence_summary,
+        llm_entry_count=len(speaker_map),
+    )
+    return speaker_map, backend_usage, llm_usage
+
+
+def run_ollama_speaker_tiebreak(
+    *,
+    manifest: SessionManifest,
+    context_text: str,
+    participant_candidates: list[dict[str, Any]],
+    unavailable_people: list[str],
+    speaker_summary: dict[str, Any],
+    model: str,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    messages = build_speaker_tiebreak_prompt(
+        manifest=manifest,
+        context_text=context_text,
+        participant_candidates=participant_candidates,
+        unavailable_people=unavailable_people,
+        speaker_summary=speaker_summary,
+    )
+    return _run_ollama_json_messages(messages=messages, model=model)
+
+
+def _run_ollama_json_messages(
+    *,
+    messages: list[dict[str, str]],
+    model: str,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    require_ollama_config(model)
     estimated_input_tokens = estimate_tokens(messages)
     max_input_tokens = resolve_max_input_tokens()
     max_output_tokens = resolve_max_output_tokens()

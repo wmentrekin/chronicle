@@ -1,0 +1,109 @@
+# Contract: implementation handoff from /implement to /review, /test, and /validate
+
+artifact: implementation_report
+feature: "stage3-identification-alternatives"
+status: draft
+owner_skill: implement
+based_on: "docs/stage3-identification-alternatives/plan.yaml"
+
+followup_batches:
+  - "review-fixes-1"
+
+tasks_attempted:
+  - "T1"
+  - "T2"
+  - "T3"
+  - "T4"
+  - "T5"
+  - "T6"
+  - "T7"
+  - "T8"
+
+tasks_completed:
+  - "T1"
+  - "T2"
+  - "T3"
+  - "T4"
+  - "T5"
+  - "T6"
+  - "T7"
+  - "T8"
+
+changes:
+  files:
+    - "docs/stage3-identification-alternatives/task-handoff-T1.yaml"
+    - "docs/stage3-identification-alternatives/task-handoff-T2.yaml"
+    - "docs/stage3-identification-alternatives/task-handoff-T3.yaml"
+    - "docs/stage3-identification-alternatives/task-handoff-T4.yaml"
+    - "docs/stage3-identification-alternatives/task-handoff-T5.yaml"
+    - "docs/stage3-identification-alternatives/task-handoff-T6.yaml"
+    - "docs/stage3-identification-alternatives/task-handoff-T7.yaml"
+    - "docs/stage3-identification-alternatives/task-handoff-T8.yaml"
+    - "docs/stage3-identification-alternatives/task-handoff-review-fixes-1.yaml"
+    - "docs/artifacts.md"
+    - "docs/cli.md"
+    - "docs/stages/stage3-identification.md"
+    - "examples/inputs/global/participants.yaml"
+    - "src/chronicle/cli/stage3.py"
+    - "src/chronicle/cli/benchmark.py"
+    - "src/chronicle/stage3/artifacts.py"
+    - "src/chronicle/stage3/benchmark.py"
+    - "src/chronicle/stage3/embeddings.py"
+    - "src/chronicle/stage3/enrollment.py"
+    - "src/chronicle/stage3/inputs.py"
+    - "src/chronicle/stage3/refmatch.py"
+    - "src/chronicle/stage3/schemas.py"
+    - "src/chronicle/stage3/service.py"
+    - "src/chronicle/stage3/llm.py"
+    - "src/chronicle/stage3/prompts.py"
+    - "tests/test_stage3.py"
+  modules:
+    - "chronicle.cli.benchmark"
+    - "chronicle.cli.stage3"
+    - "chronicle.stage3.artifacts"
+    - "chronicle.stage3.benchmark"
+    - "chronicle.stage3.embeddings"
+    - "chronicle.stage3.enrollment"
+    - "chronicle.stage3.inputs"
+    - "chronicle.stage3.llm"
+    - "chronicle.stage3.prompts"
+    - "chronicle.stage3.refmatch"
+    - "chronicle.stage3.schemas"
+    - "chronicle.stage3.service"
+  docs_updated:
+    - "docs/stage3-identification-alternatives/task-handoff-T1.yaml"
+    - "docs/stage3-identification-alternatives/task-handoff-T2.yaml"
+    - "docs/stage3-identification-alternatives/task-handoff-T3.yaml"
+    - "docs/stage3-identification-alternatives/task-handoff-T4.yaml"
+    - "docs/stage3-identification-alternatives/task-handoff-T5.yaml"
+    - "docs/stage3-identification-alternatives/task-handoff-T6.yaml"
+    - "docs/stage3-identification-alternatives/task-handoff-T7.yaml"
+    - "docs/stage3-identification-alternatives/task-handoff-T8.yaml"
+    - "docs/stage3-identification-alternatives/task-handoff-review-fixes-1.yaml"
+    - "docs/artifacts.md"
+    - "docs/cli.md"
+    - "docs/stages/stage3-identification.md"
+    - "examples/inputs/global/participants.yaml"
+
+local_validation:
+  checks_run:
+    - "env UV_CACHE_DIR=/tmp/uv-cache uv run pytest tests/test_stage3.py"
+    - "env UV_CACHE_DIR=/tmp/uv-cache uv run pytest tests/test_stage3.py"
+    - "env UV_CACHE_DIR=/tmp/uv-cache uv run pytest tests/test_stage3.py"
+    - "env UV_CACHE_DIR=/tmp/uv-cache uv run pytest tests/test_stage3.py"
+    - "env UV_CACHE_DIR=/tmp/uv-cache uv run pytest tests/test_stage3.py"
+    - "env UV_CACHE_DIR=/tmp/uv-cache uv run pytest tests/test_stage3.py"
+    - "env UV_CACHE_DIR=/tmp/uv-cache uv run pytest tests/test_stage3.py"
+    - "env UV_CACHE_DIR=/tmp/uv-cache uv run pytest tests/test_stage3.py"
+  failures: []
+  skipped:
+    - "No real labeled session benchmark, real SpeechBrain model smoke, or full pipeline validation was run in these batches; current validation is synthetic/unit-level around backend selection, enrollment prep, embedding caching, backend scoring, and benchmark reporting."
+    - "T8 was validated by doc-to-code review against the implemented CLI, service, benchmark, schema, and input-loading paths rather than by automated tests."
+
+known_issues:
+  - "The `benchmark-stage3` command and recommendation logic are implemented, but they have not yet been exercised on a real labeled session fixture."
+  - "The `speechbrain_refmatch`, `speechbrain_hybrid`, and `ollama_decomposed` backends are still validated primarily through unit/service tests plus synthetic benchmark coverage rather than a real labeled evaluation run."
+
+blockers: []
+
+recommended_next_step: review

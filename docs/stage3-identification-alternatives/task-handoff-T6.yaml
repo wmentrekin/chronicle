@@ -1,0 +1,53 @@
+# Contract: task handoff from /implement to developer agents
+
+artifact: task_handoff
+feature: "stage3-identification-alternatives"
+task_id: "T6"
+owner_skill: implement
+
+objective: "Add a Stage 3 benchmark runner and deterministic report generation that compares selected backends against a labeled speaker-map truth set without changing the production default."
+why_this_matters: "T6 is the decision gate for this feature. The backend abstraction is implemented, but the plan requires a comparison command that can score exact assignment accuracy, preserve backend diagnostics, isolate backend failures, and emit a recommendation under the fixed accuracy-first selection rule."
+
+inputs:
+  requirements: "docs/stage3-identification-alternatives/requirements.yaml"
+  plan: "docs/stage3-identification-alternatives/plan.yaml"
+  relevant_paths:
+    - "docs/stage3-identification-alternatives/implementation-report.yaml"
+    - "src/chronicle/cli/benchmark.py"
+    - "src/chronicle/cli/stage3.py"
+    - "src/chronicle/stage3/service.py"
+    - "src/chronicle/stage3/schemas.py"
+    - "src/chronicle/stage3/manual.py"
+    - "tests/test_stage3.py"
+
+scope:
+  owned:
+    - "src/chronicle/cli/benchmark.py"
+    - "src/chronicle/stage3/benchmark.py"
+    - "tests/test_stage3.py"
+  forbidden:
+    - "Changing the Stage 3 default backend"
+    - "Changing Stage 1 or Stage 2 artifacts or services"
+    - "Changing transcript/block rendering behavior"
+    - "Renaming existing Stage 3 output artifacts"
+
+implementation_notes:
+  - "Follow the existing benchmark CLI style in `src/chronicle/cli/benchmark.py`."
+  - "Use an explicit labeled truth input rather than hidden session metadata. Reuse the existing manual speaker-map shape unless a small benchmark-only wrapper is strictly necessary."
+  - "Benchmark runs should execute selected Stage 3 backends sequentially on the same session and continue reporting if one backend fails."
+  - "The report must preserve exact assignment accuracy, runtime totals, per-backend diagnostics or notes, enrollment coverage, CPU-feasibility notes, failure details, and the fixed recommendation rule."
+  - "Emit both JSON and Markdown artifacts under the session `runs/` directory."
+  - "Keep the implementation deterministic and unit-testable with monkeypatched backend execution."
+
+validation_expected:
+  - "Report generation tests for both JSON and Markdown output."
+  - "Deterministic ranking tests using fixed backend results."
+  - "Failure-isolated reporting tests proving one backend failure does not abort the full benchmark."
+  - "Recommendation logic tests covering the 2-percentage-point tie-break rule."
+  - "Report tests proving enrollment coverage, CPU-feasibility notes, and backend diagnostics are preserved."
+
+escalate_if:
+  - missing_context
+  - conflicting_artifacts
+  - product_or_architecture_guess_required
+  - scope_expansion_required

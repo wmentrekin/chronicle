@@ -1,0 +1,50 @@
+# Contract: task handoff from /implement to developer agents
+
+artifact: task_handoff
+feature: "stage3-identification-alternatives"
+task_id: "T7"
+owner_skill: implement
+
+objective: "Finalize Stage 3 CLI, artifact metadata, and run-record integration for backend-aware identification while preserving current filenames and transcript content."
+why_this_matters: "T7 makes the new backend framework observable and durable. Before benchmarking, Stage 3 artifacts and run metadata need to expose backend family, backend usage, and backend-specific run configuration consistently across the identify command."
+
+inputs:
+  requirements: "docs/stage3-identification-alternatives/requirements.yaml"
+  plan: "docs/stage3-identification-alternatives/plan.yaml"
+  relevant_paths:
+    - "src/chronicle/cli/stage3.py"
+    - "src/chronicle/stage3/artifacts.py"
+    - "src/chronicle/stage3/service.py"
+    - "tests/test_stage3.py"
+    - "src/chronicle/utils.py"
+
+scope:
+  owned:
+    - "src/chronicle/cli/stage3.py"
+    - "src/chronicle/stage3/artifacts.py"
+    - "src/chronicle/stage3/service.py"
+    - "tests/test_stage3.py"
+  forbidden:
+    - "src/chronicle/cli/benchmark.py"
+    - "docs/"
+    - "examples/"
+    - "Renaming Stage 3 output artifacts"
+    - "Changing transcript text or Stage 2 provenance"
+    - "Default backend switch"
+
+implementation_notes:
+  - "Preserve `identified_conversation.*` and `aligned_transcript.*` filenames."
+  - "Make backend metadata visible in artifacts and markdown output where useful, without bloating transcript rendering."
+  - "Keep run metadata backend-aware through the existing `write_run_metadata` path."
+  - "Add regression tests around artifact schema and run-config content rather than expanding CLI surface area beyond the approved `--backend` option."
+
+validation_expected:
+  - "Artifact schema tests for each backend family."
+  - "Regression tests that Stage 3 run metadata includes backend-specific config/state."
+  - "Stage 3 suite remains green."
+
+escalate_if:
+  - missing_context
+  - conflicting_artifacts
+  - product_or_architecture_guess_required
+  - scope_expansion_required

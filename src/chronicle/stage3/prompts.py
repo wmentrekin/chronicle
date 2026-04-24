@@ -16,6 +16,10 @@ Valid assigned_person and candidate_people values must come only from candidate_
 people_likely_discussed is context only and is not a valid assignment target unless that name is also in candidate_people.
 Use confidence conservatively: Confirmed, Likely, Unclear, or Needs review."""
 
+TIEBREAK_SYSTEM_PROMPT = """You resolve one ambiguous diarized speaker against a small allowed candidate set.
+Return only valid JSON. Do not invent people. assigned_person and candidate_people must come only from allowed_candidates.
+Choose exactly one assigned_person from allowed_candidates. Preserve one-to-one mapping by respecting unavailable_people."""
+
 
 def build_speaker_map_prompt(
     *,
@@ -60,6 +64,41 @@ def build_speaker_map_prompt(
     }
     return [
         {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": json.dumps(_json_safe(payload), ensure_ascii=True, indent=2)},
+    ]
+
+
+def build_speaker_tiebreak_prompt(
+    *,
+    manifest: SessionManifest,
+    context_text: str,
+    participant_candidates: list[dict[str, Any]],
+    unavailable_people: list[str],
+    speaker_summary: dict[str, Any],
+) -> list[dict[str, str]]:
+    payload = {
+        "prompt_version": PROMPT_VERSION,
+        "session": {
+            "session_id": manifest.session_id,
+            "title": manifest.title,
+            "interview_date": manifest.interview_date,
+            "language": manifest.language,
+            "primary_interviewees": manifest.primary_interviewees,
+        },
+        "allowed_candidates": participant_candidates,
+        "unavailable_people": unavailable_people,
+        "people_likely_discussed": manifest.people_likely_discussed,
+        "context_excerpt": context_text[:2000],
+        "anonymous_speaker": speaker_summary,
+        "rules": [
+            "Assign exactly one person from allowed_candidates.",
+            "Do not assign anyone listed in unavailable_people.",
+            "Keep candidate_people equal to the provided allowed candidate names.",
+            "Return JSON with one top-level key: speaker_map.",
+        ],
+    }
+    return [
+        {"role": "system", "content": TIEBREAK_SYSTEM_PROMPT},
         {"role": "user", "content": json.dumps(_json_safe(payload), ensure_ascii=True, indent=2)},
     ]
 

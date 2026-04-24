@@ -1,0 +1,50 @@
+# Contract: task handoff from /implement to developer agents
+
+artifact: task_handoff
+feature: "stage3-identification-alternatives"
+task_id: "T5"
+owner_skill: implement
+
+objective: "Adapt the existing decomposed Stage 3 Ollama implementation to the shared backend framework so `ollama_decomposed` is the explicit no-reference baseline with backend-specific metadata and regression coverage."
+why_this_matters: "T5 closes the remaining backend gap before benchmark/report work. The comparison framework needs the baseline Ollama path to behave like a first-class backend rather than a legacy fallback branch."
+
+inputs:
+  requirements: "docs/stage3-identification-alternatives/requirements.yaml"
+  plan: "docs/stage3-identification-alternatives/plan.yaml"
+  relevant_paths:
+    - "src/chronicle/stage3/llm.py"
+    - "src/chronicle/stage3/service.py"
+    - "src/chronicle/stage3/schemas.py"
+    - "tests/test_stage3.py"
+    - "docs/plans/stage3-ollama-decomposition.md"
+
+scope:
+  owned:
+    - "src/chronicle/stage3/llm.py"
+    - "src/chronicle/stage3/service.py"
+    - "src/chronicle/stage3/schemas.py"
+    - "tests/test_stage3.py"
+  forbidden:
+    - "src/chronicle/cli/"
+    - "docs/"
+    - "examples/"
+    - "Benchmark/reporting logic"
+    - "Changing manual or align-only semantics"
+    - "Changing SpeechBrain backend behavior except where shared backend wiring requires it"
+
+implementation_notes:
+  - "Keep the existing Ollama behavior local-only and compatible with current tests."
+  - "Expose `ollama_decomposed` as an explicit backend path with backend-specific usage metadata instead of a special-case fallback."
+  - "Add adapter/regression tests so the baseline backend contract matches the newer SpeechBrain backends."
+  - "Do not redesign the decomposed Ollama workflow beyond what already exists in the repo."
+
+validation_expected:
+  - "Existing Ollama tests continue to pass."
+  - "Backend-adapter tests verify `ollama_decomposed` metadata shape and routing."
+  - "Stage 3 service regression tests stay green."
+
+escalate_if:
+  - missing_context
+  - conflicting_artifacts
+  - product_or_architecture_guess_required
+  - scope_expansion_required

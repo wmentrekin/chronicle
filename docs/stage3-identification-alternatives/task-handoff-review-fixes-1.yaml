@@ -1,0 +1,51 @@
+# Contract: task handoff from /implement to developer agents
+
+artifact: task_handoff
+feature: "stage3-identification-alternatives"
+task_id: "review-fixes-1"
+owner_skill: implement
+
+objective: "Address the concrete review findings for the Stage 3 alternatives feature without expanding scope beyond the approved plan."
+why_this_matters: "The feature review found three correctness gaps: hybrid can silently auto-assign a weak last-remaining candidate instead of failing closed or using the bounded tie-break flow; benchmark failure isolation only catches `StageExecutionError`; and hybrid LLM use is not treated consistently for preflight config validation and metadata."
+
+inputs:
+  requirements: "docs/stage3-identification-alternatives/requirements.yaml"
+  plan: "docs/stage3-identification-alternatives/plan.yaml"
+  relevant_paths:
+    - "docs/stage3-identification-alternatives/implementation-report.yaml"
+    - "src/chronicle/stage3/refmatch.py"
+    - "src/chronicle/stage3/benchmark.py"
+    - "src/chronicle/stage3/service.py"
+    - "src/chronicle/stage3/schemas.py"
+    - "tests/test_stage3.py"
+
+scope:
+  owned:
+    - "src/chronicle/stage3/refmatch.py"
+    - "src/chronicle/stage3/benchmark.py"
+    - "src/chronicle/stage3/service.py"
+    - "src/chronicle/stage3/schemas.py"
+    - "tests/test_stage3.py"
+  forbidden:
+    - "Changing the approved backend set"
+    - "Changing the production default backend"
+    - "Changing Stage 1 or Stage 2 contracts"
+    - "Changing docs unless strictly necessary for correctness"
+
+implementation_notes:
+  - "Keep the fix bounded to the review findings."
+  - "Hybrid must not silently auto-assign a low-confidence or conflict-derived single remaining candidate in a way that violates the plan’s fail-closed behavior."
+  - "Benchmark reporting must keep running when a backend raises an unexpected exception, and the failure should be recorded deterministically."
+  - "Hybrid Ollama use should be treated consistently for config validation and metadata when the backend can call Ollama."
+  - "Add tests for each corrected behavior."
+
+validation_expected:
+  - "Stage 3 tests cover the hybrid last-candidate conflict path."
+  - "Stage 3 tests cover benchmark isolation for unexpected exceptions, not only `StageExecutionError`."
+  - "Stage 3 tests cover hybrid config/metadata behavior where Ollama is involved."
+
+escalate_if:
+  - missing_context
+  - conflicting_artifacts
+  - product_or_architecture_guess_required
+  - scope_expansion_required

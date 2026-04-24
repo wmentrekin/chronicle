@@ -1,0 +1,43 @@
+# Contract: final readiness decision from /validate
+
+artifact: validation_report
+feature: "stage3-identification-alternatives"
+status: draft
+owner_skill: validate
+based_on:
+  requirements: "docs/stage3-identification-alternatives/requirements.yaml"
+  plan: "docs/stage3-identification-alternatives/plan.yaml"
+  implementation: "docs/stage3-identification-alternatives/implementation-report.yaml"
+
+final_status: READY_WITH_CAVEATS
+
+acceptance_criteria_status:
+  satisfied:
+    - "Requirements clearly define the task as a comparison of multiple local Stage 3 identification alternatives before selecting an implementation path."
+    - "Requirements clearly state that both non-LLM and local LLM-assisted methods are in scope."
+    - "Requirements clearly state that Stage 3 may use transcript, diarization, manifest/context, raw audio, speaker embeddings, and reference voice samples if needed."
+    - "Requirements clearly state the metric priority order: identification accuracy first; runtime speed and CPU feasibility second; setup simplicity and reproducibility later."
+    - "Requirements clearly state that the current Ollama decomposition plan remains in scope as a comparison candidate but is not the preferred assumption."
+    - "Requirements are specific enough for downstream evaluation and selection without reopening scope questions."
+  unsatisfied: []
+  unverified:
+    - "The benchmark and backend comparison flow has not yet been exercised on a real labeled evaluation session or slice."
+    - "Real local SpeechBrain embedding extraction and hybrid/Ollama benchmark behavior on the target 8 GB CPU-only machine have not yet been validated end to end."
+
+evidence:
+  review_status: "APPROVED_WITH_FOLLOWUP"
+  test_status: "Focused Stage 3 validation passed: `env UV_CACHE_DIR=/tmp/uv-cache uv run pytest tests/test_stage3.py` -> 43 passed."
+  pre_commit_checks:
+    - "No repo `.pre-commit-config.yaml` is present, so equivalent final checks were used."
+    - "`env UV_CACHE_DIR=/tmp/uv-cache uv run pytest tests/test_stage3.py`"
+    - "`env UV_CACHE_DIR=/tmp/uv-cache uv run python -m compileall src/chronicle`"
+
+remaining_caveats:
+  - "The feature is implementation-complete and locally validated at the unit/synthetic level, but benchmark recommendations are still based on synthetic coverage until a real labeled session is run."
+  - "The new local SpeechBrain and hybrid paths may still surface environment-specific runtime or dependency issues that were not exercised by the focused tests."
+  - "The production default backend intentionally remains unchanged in this phase; the benchmark produces a recommendation artifact only."
+
+next_actions:
+  - "Run `chronicle benchmark-stage3 <session_id> --truth-file <speaker-map.yaml>` on a curated labeled session or slice."
+  - "Capture runtime and CPU-feasibility notes on the target 8 GB CPU-only machine before acting on any backend recommendation."
+  - "If the real benchmark outcome is acceptable, proceed to the later decision on whether to change the default backend."

@@ -16,6 +16,7 @@ Chronicle is a filesystem-based CLI. Each command reads session inputs from `inp
 - `chronicle benchmark-stage1 <session_id>`
 - `chronicle benchmark-stage1-concurrency <session_id>`
 - `chronicle benchmark-stage2 <session_id>`
+- `chronicle benchmark-stage3 <session_id>`
 - `chronicle models fetch parakeet`
 
 ## What each command does
@@ -29,20 +30,23 @@ Chronicle is a filesystem-based CLI. Each command reads session inputs from `inp
 - `run` validates the session and prints pipeline status for all stages.
 - `benchmark-stage1` and `benchmark-stage1-concurrency` compare Stage 1 Parakeet settings.
 - `benchmark-stage2` compares Stage 2 diarization backends.
+- `benchmark-stage3` compares Stage 3 automatic identification backends against an explicit truth speaker map and writes JSON and Markdown reports under `outputs/<session_id>/runs/`.
 - `models fetch parakeet` downloads the Chronicle-managed local Parakeet model directory.
 
 ## Current defaults and constraints
 
 - Stage 1 prefers local Parakeet and can fall back to `faster-whisper` when required.
 - Stage 2 uses the local SpeechBrain-backed diarization path in production.
-- Stage 3 uses local Ollama in `llm` mode, with `qwen3:8b` as the default model.
-- `manual` and `align-only` modes do not call Ollama.
+- Stage 3 automatic identification still defaults to the local `ollama_decomposed` backend in `--mode llm`, with `qwen3:8b` as the default Ollama model where Ollama is used.
+- `manual` and `align-only` modes do not use automatic backends.
+- Stage 3 benchmark output is recommendation-only and does not switch the production default backend.
 - Commands operate on one session at a time and keep all sensitive processing local by default.
 
 ## Important options
 
 - `transcribe` accepts backend selection and Parakeet runtime/model options.
 - `diarize` accepts speaker-count constraints, device selection, and the separate Stage 2 Python runtime path.
-- `identify` accepts `--mode llm|manual|align-only`, `--model`, `--speaker-map`, and `--participants-file`.
+- `identify` accepts `--mode llm|manual|align-only`, `--backend`, `--model`, `--speaker-map`, and `--participants-file`.
+- `identify --backend` supports `ollama_decomposed`, `speechbrain_refmatch`, and `speechbrain_hybrid` when automatic Stage 3 assignment is requested.
+- `benchmark-stage3` requires `--truth-file` and accepts `--backends`, `--model`, `--cpu-note`, and `--participants-file`.
 - `init` accepts model-management flags for Parakeet and Stage 3 Ollama setup.
-

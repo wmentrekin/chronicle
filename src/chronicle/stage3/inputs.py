@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
@@ -25,6 +25,7 @@ class Stage3Inputs:
     participants_by_name: dict[str, dict[str, Any]]
     context_path: Path
     context_text: str
+    participant_voice_references: dict[str, list[str]] = field(default_factory=dict)
 
 
 def normalize_source_audio(value: object, manifest: SessionManifest | None = None) -> str:
@@ -61,6 +62,41 @@ def normalize_source_audio(value: object, manifest: SessionManifest | None = Non
     return normalized
 
 
+def normalize_voice_references(value: object, *, participants_file: Path) -> list[str]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise StageExecutionError(
+            f"`voice_references` must be a list of paths when provided in {repo_relative(participants_file)}"
+        )
+
+    normalized: list[str] = []
+    for raw_path in value:
+        if not isinstance(raw_path, str) or not raw_path.strip():
+            raise StageExecutionError(
+                f"`voice_references` entries must be non-empty strings in {repo_relative(participants_file)}"
+            )
+        path = Path(raw_path.strip())
+        candidates = [path] if path.is_absolute() else []
+        if not path.is_absolute():
+            normalized_raw_path = path.as_posix().lstrip("./")
+            if normalized_raw_path.startswith(("inputs/", "outputs/", "src/", "tests/", "docs/", "examples/")):
+                candidates.append(REPO_ROOT / path)
+            else:
+                candidates.append(participants_file.resolve().parent / path)
+                candidates.append(REPO_ROOT / path)
+
+        normalized_path = path.as_posix()
+        for candidate in candidates:
+            try:
+                normalized_path = repo_relative(candidate)
+                break
+            except OSError:
+                continue
+        normalized.append(normalized_path)
+    return normalized
+
+
 def load_participant_records(participants_file: Path = DEFAULT_PARTICIPANTS_FILE) -> dict[str, dict[str, Any]]:
     payload = load_yaml(participants_file)
     participants = payload.get("participants")
@@ -75,7 +111,12 @@ def load_participant_records(participants_file: Path = DEFAULT_PARTICIPANTS_FILE
             continue
         canonical_name = participant.get("canonical_name")
         if isinstance(canonical_name, str) and canonical_name.strip():
-            records[canonical_name.strip()] = participant
+            normalized_participant = dict(participant)
+            normalized_participant["voice_references"] = normalize_voice_references(
+                participant.get("voice_references"),
+                participants_file=participants_file,
+            )
+            records[canonical_name.strip()] = normalized_participant
     return records
 
 
@@ -155,6 +196,10 @@ def load_stage3_inputs(
         participants_by_name=participants_by_name,
         context_path=context_path,
         context_text=context_text,
+        participant_voice_references={
+            name: list(record.get("voice_references") or [])
+            for name, record in participants_by_name.items()
+        },
     )
 
 

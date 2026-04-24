@@ -1,0 +1,52 @@
+# Contract: task handoff from /implement to developer agents
+
+artifact: task_handoff
+feature: "stage3-identification-alternatives"
+task_id: "T3"
+owner_skill: implement
+
+objective: "Implement `speechbrain_refmatch` using participant reference embeddings and anonymous speaker embeddings, with deterministic one-to-one assignment and strict fail-closed thresholds."
+why_this_matters: "T3 is the first non-LLM Stage 3 backend. It proves the new enrollment and embedding utilities can drive canonical speaker assignment locally without expanding scope into hybrid tie-break logic or benchmark reporting."
+
+inputs:
+  requirements: "docs/stage3-identification-alternatives/requirements.yaml"
+  plan: "docs/stage3-identification-alternatives/plan.yaml"
+  relevant_paths:
+    - "src/chronicle/stage3/service.py"
+    - "src/chronicle/stage3/enrollment.py"
+    - "src/chronicle/stage3/embeddings.py"
+    - "src/chronicle/stage3/identity.py"
+    - "src/chronicle/stage3/schemas.py"
+    - "tests/test_stage3.py"
+
+scope:
+  owned:
+    - "src/chronicle/stage3/"
+    - "tests/test_stage3.py"
+  forbidden:
+    - "src/chronicle/cli/"
+    - "docs/"
+    - "examples/"
+    - "Hybrid Ollama tie-break behavior"
+    - "Benchmark/reporting logic"
+    - "Relaxing one-to-one identity policy"
+
+implementation_notes:
+  - "Add a bounded backend module for `speechbrain_refmatch` rather than growing `service.py` into backend-specific logic."
+  - "Reuse enrollment and embedding-cache utilities from T2."
+  - "Fail explicitly for insufficient participant enrollment coverage, missing speaker slices, low-confidence similarity, or duplicate-best-match conflicts."
+  - "Keep output in the existing normalized speaker-map shape and use backend-generic metadata."
+  - "Do not implement `speechbrain_hybrid` or benchmark selection in this task."
+
+validation_expected:
+  - "Synthetic tests for clean match."
+  - "Synthetic tests for ambiguous low-margin failure."
+  - "Synthetic tests for low-confidence failure."
+  - "Synthetic tests for duplicate-best-match conflict."
+  - "Artifact-level regression showing the Stage 3 service can route `speechbrain_refmatch` and preserve the canonical `speaker_map` contract."
+
+escalate_if:
+  - missing_context
+  - conflicting_artifacts
+  - product_or_architecture_guess_required
+  - scope_expansion_required

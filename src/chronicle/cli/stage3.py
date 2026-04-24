@@ -14,6 +14,7 @@ from ..exceptions import SessionValidationError, StageExecutionError
 from ..paths import DEFAULT_PARTICIPANTS_FILE, ensure_output_dirs, repo_relative, session_manifest_path
 from ..session import require_valid_session, resolve_context_path
 from ..stage3.service import execute_stage3
+from ..stage3.schemas import DEFAULT_BACKEND
 from ..utils import write_run_metadata
 from .common import confirm_overwrite_if_needed, console, render_stage_plan
 
@@ -35,6 +36,14 @@ def register(app: typer.Typer) -> None:
             None,
             "--model",
             help="Ollama model for llm mode. Overrides CHRONICLE_STAGE3_MODEL.",
+        ),
+        backend: Optional[str] = typer.Option(
+            None,
+            "--backend",
+            help=(
+                "Automatic Stage 3 backend for identity assignment. "
+                f"Defaults to `{DEFAULT_BACKEND}` and applies only to automatic modes."
+            ),
         ),
         speaker_map: Optional[Path] = typer.Option(
             None,
@@ -73,7 +82,7 @@ def register(app: typer.Typer) -> None:
         stage_metadata: dict[str, object] = {}
         status = "failed"
         try:
-            if mode == "llm":
+            if mode == "llm" and (backend is None or backend == DEFAULT_BACKEND):
                 console.print(
                     Panel(
                         (
@@ -93,6 +102,7 @@ def register(app: typer.Typer) -> None:
                 force=force,
                 mode=mode,
                 model=model,
+                backend=backend,
                 speaker_map_path=speaker_map,
             )
             run_notes.extend(stage_notes)
@@ -143,10 +153,21 @@ def register(app: typer.Typer) -> None:
                 config={
                     "force": force,
                     "mode": mode,
-                    "model": model,
+                    "backend": stage_metadata.get("backend"),
+                    "backend_requested": backend,
+                    "model": stage_metadata.get("model"),
+                    "model_requested": model,
+                    "provider": stage_metadata.get("provider"),
+                    "prompt_version": stage_metadata.get("prompt_version"),
                     "speaker_map": repo_relative(speaker_map) if speaker_map else None,
                     "participants_file": repo_relative(participants_file),
-                    "stage3": stage_metadata,
+                    "schema_version": stage_metadata.get("schema_version"),
+                    "source_stage1_artifact": stage_metadata.get("source_stage1_artifact"),
+                    "source_stage2_artifact": stage_metadata.get("source_stage2_artifact"),
+                    "context_doc": stage_metadata.get("context_doc"),
+                    "speaker_map_path": stage_metadata.get("speaker_map_path"),
+                    "backend_usage": stage_metadata.get("backend_usage"),
+                    "llm_usage": stage_metadata.get("llm_usage"),
                 },
                 notes=run_notes,
                 started_at=started_at,

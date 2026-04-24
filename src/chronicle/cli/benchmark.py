@@ -26,6 +26,7 @@ from ..stage2.benchmark import (
     run_stage2_pyannote_spike,
     run_stage2_speechbrain_spike,
 )
+from ..stage3.benchmark import parse_stage3_benchmark_backends, run_stage3_benchmark
 from ..utils import write_json
 from .common import console
 
@@ -391,5 +392,108 @@ def register(app: typer.Typer) -> None:
                     f"`{repo_relative(directories['stage2_spike'])}`."
                 ),
                 title="Stage 2 Spike Complete",
+            )
+        )
+
+    @app.command("benchmark-stage3")
+    def benchmark_stage3_command(
+        session_id: str = typer.Argument(..., help="Session folder name under inputs/sessions/."),
+        participants_file: Path = typer.Option(
+            DEFAULT_PARTICIPANTS_FILE,
+            "--participants-file",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+        ),
+        truth_file: Path = typer.Option(
+            ...,
+            "--truth-file",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            help="YAML truth speaker map using the existing top-level `speaker_map` shape.",
+        ),
+        backends: str = typer.Option(
+            "ollama_decomposed,speechbrain_refmatch,speechbrain_hybrid",
+            "--backends",
+            help="Comma-separated Stage 3 backends to benchmark.",
+        ),
+        model: str | None = typer.Option(
+            None,
+            "--model",
+            help="Optional Ollama model override for LLM-backed Stage 3 benchmark runs.",
+        ),
+        cpu_note: list[str] | None = typer.Option(
+            None,
+            "--cpu-note",
+            help="Repeatable note recorded in the benchmark report about CPU/runtime feasibility.",
+        ),
+    ) -> None:
+        """Benchmark Stage 3 backends against a labeled speaker-map truth set."""
+        try:
+            manifest = require_valid_session(session_id, console, participants_file)
+        except SessionValidationError as exc:
+            raise typer.Exit(code=1) from exc
+
+        directories = ensure_output_dirs(manifest.session_id)
+        try:
+            parsed_backends = parse_stage3_benchmark_backends(backends)
+        except StageExecutionError as exc:
+            console.print(Panel(str(exc), title="Invalid Benchmark Config", style="red"))
+            raise typer.Exit(code=1) from exc
+
+        started_at = datetime.now(timezone.utc)
+        try:
+            with console.status("Benchmarking Stage 3 backends..."):
+                report, json_path, markdown_path = run_stage3_benchmark(
+                    manifest=manifest,
+                    stage1_dir=directories["stage1"],
+                    stage2_dir=directories["stage2"],
+                    runs_dir=directories["runs"],
+                    participants_file=participants_file,
+                    truth_file=truth_file,
+                    started_at_label=started_at.strftime("%Y%m%dT%H%M%SZ"),
+                    backends=parsed_backends,
+                    model=model,
+                    cpu_feasibility_notes=list(cpu_note or []),
+                )
+        except StageExecutionError as exc:
+            console.print(Panel(str(exc), title="Stage 3 Benchmark Failed", style="red"))
+            raise typer.Exit(code=1) from exc
+
+        table = Table(title="Stage 3 Benchmark")
+        table.add_column("Backend", style="cyan")
+        table.add_column("Status", style="white")
+        table.add_column("Accuracy", style="white")
+        table.add_column("Runtime", style="white")
+        for row in report["results"]:
+            table.add_row(
+                str(row["backend"]),
+                str(row["status"]),
+                (
+                    f"{float(row['exact_assignment_accuracy']):.3f}%"
+                    if row["status"] == "success"
+                    else "-"
+                ),
+                f"{float(row['runtime_seconds']):.3f}s",
+            )
+        console.print(table)
+
+        recommendation = report["recommendation"]
+        if recommendation["recommended_backend"] is None:
+            recommendation_text = "No successful backend runs; no recommendation."
+        else:
+            recommendation_text = (
+                f"Recommended backend: `{recommendation['recommended_backend']}` "
+                f"({recommendation['basis']})."
+            )
+        console.print(
+            Panel(
+                (
+                    f"{recommendation_text}\n\n"
+                    f"JSON report: {json_path.as_posix()}\n"
+                    f"Markdown report: {markdown_path.as_posix()}"
+                ),
+                title="Stage 3 Benchmark Complete",
             )
         )

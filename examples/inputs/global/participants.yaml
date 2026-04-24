@@ -4,6 +4,8 @@ participants:
     roles:
       - interviewer
     living: true
+    voice_references:
+      - inputs/global/voice/interviewer-example-intro.wav
     notes: Example interviewer scaffold entry.
 
   - canonical_name: Primary Narrator Example
@@ -11,6 +13,9 @@ participants:
     roles:
       - interviewee
     living: true
+    voice_references:
+      - inputs/global/voice/primary-narrator-example-1.wav
+      - inputs/global/voice/primary-narrator-example-2.wav
     notes: Example interviewee scaffold entry.
 
   - canonical_name: Secondary Narrator Example
@@ -18,6 +23,8 @@ participants:
     roles:
       - interviewee
     living: true
+    voice_references:
+      - inputs/global/voice/secondary-narrator-example.wav
     notes: Optional second speaker scaffold entry.
 
   - canonical_name: Parent Example
