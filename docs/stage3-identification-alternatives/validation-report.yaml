@@ -25,16 +25,19 @@ acceptance_criteria_status:
     - "Real local SpeechBrain embedding extraction and hybrid/Ollama benchmark behavior on the target 8 GB CPU-only machine have not yet been validated end to end."
 
 evidence:
-  review_status: "APPROVED_WITH_FOLLOWUP"
-  test_status: "Focused Stage 3 validation passed: `env UV_CACHE_DIR=/tmp/uv-cache uv run pytest tests/test_stage3.py` -> 43 passed."
+  review_status: "APPROVED_WITH_FOLLOWUP (implementation report includes a completed `review-fixes-1` batch addressing concrete review findings)."
+  test_status: "Focused Stage 3 validation passed on 2026-04-24: `env UV_CACHE_DIR=/tmp/uv-cache uv run pytest tests/test_stage3.py` -> 43 passed."
   pre_commit_checks:
     - "No repo `.pre-commit-config.yaml` is present, so equivalent final checks were used."
+    - "Repo clean before validation: `git status --short` -> no output."
     - "`env UV_CACHE_DIR=/tmp/uv-cache uv run pytest tests/test_stage3.py`"
     - "`env UV_CACHE_DIR=/tmp/uv-cache uv run python -m compileall src/chronicle`"
+    - "`env UV_CACHE_DIR=/tmp/uv-cache uv run chronicle identify --help`"
+    - "`env UV_CACHE_DIR=/tmp/uv-cache uv run chronicle benchmark-stage3 --help`"
 
 remaining_caveats:
-  - "The feature is implementation-complete and locally validated at the unit/synthetic level, but benchmark recommendations are still based on synthetic coverage until a real labeled session is run."
-  - "The new local SpeechBrain and hybrid paths may still surface environment-specific runtime or dependency issues that were not exercised by the focused tests."
+  - "The feature is implementation-complete and locally validated at the unit and CLI-surface level, but benchmark recommendations are still based on synthetic coverage until a real labeled session is run."
+  - "The new local SpeechBrain and hybrid paths may still surface environment-specific runtime, ffmpeg/audio-slicing, or dependency issues that were not exercised by the focused tests."
   - "The production default backend intentionally remains unchanged in this phase; the benchmark produces a recommendation artifact only."
 
 next_actions:
