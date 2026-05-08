@@ -22,10 +22,6 @@ chronicle = "chronicle.cli:main"
 dev = [
   "pytest>=8.0",
 ]
-stage1-faster-whisper = [
-  "faster-whisper>=1.1.0",
-  "imageio-ffmpeg>=0.6.0",
-]
 stage1-parakeet = [
   "imageio-ffmpeg>=0.6.0",
   "librosa>=0.11.0",

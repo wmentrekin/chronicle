@@ -17,12 +17,14 @@ Stage 1 converts raw session audio into a session-level transcript. It does not 
 
 ## Current behavior
 
-- Default backend is local Parakeet.
-- `faster-whisper` remains available as a compatibility fallback.
-- Audio is decoded locally before transcription.
+- `chronicle transcribe` is the default cloud Stage 1 command.
+- The current cloud implementation provisions a worker that executes the Parakeet transcription path.
+- Audio is decoded on the worker before transcription.
 - The session transcript is assembled from the source audio files in order.
 - The transcript keeps source audio provenance and sequential session-relative timestamps.
 - Stage 1 writes run metadata under `outputs/<session_id>/runs/`.
+- `stage1_model_preference` remains in the session manifest schema for compatibility, but Stage 1 ignores it.
+- GCP operator wrappers exist under `scripts/stage1/gcp/`.
 
 ## What Stage 1 does not do
 
@@ -32,6 +34,6 @@ Stage 1 converts raw session audio into a session-level transcript. It does not 
 
 ## Current limitations
 
-- Stage 1 is optimized for local execution, not remote services.
-- The Parakeet path depends on local model availability and the current Python environment.
-
+- The current cloud implementation still depends on GCP worker availability and operator-side `gcloud` setup.
+- Cloud execution is partially permanentized in `src`, but still relies on shell/operator steps outside the main CLI for full lifecycle control.
+- The Parakeet path depends on model availability and the current Python environment on the worker.
