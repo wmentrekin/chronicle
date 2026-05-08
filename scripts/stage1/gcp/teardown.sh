@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PROJECT_ID="${PROJECT_ID:-}"
-ZONE="${ZONE:-us-east1-c}"
+ZONE="${ZONE:-us-central1-a}"
 INSTANCE_NAME="${INSTANCE_NAME:-}"
 DRY_RUN="${DRY_RUN:-1}"
 

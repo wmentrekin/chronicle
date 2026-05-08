@@ -15,6 +15,8 @@ Chronicle is a filesystem-based CLI. Each command reads session inputs from `inp
 - `chronicle run <session_id>`
 - `chronicle benchmark-stage1 <session_id>`
 - `chronicle benchmark-stage1-concurrency <session_id>`
+- `chronicle transcribe-plan <session_id> --project-id ... --instance-name ... --local-session-dir ...`
+- `chronicle transcribe-command <step> <session_id> --project-id ... --instance-name ... --local-session-dir ...`
 - `chronicle benchmark-stage2 <session_id>`
 - `chronicle benchmark-stage3 <session_id>`
 - `chronicle models fetch parakeet`
@@ -23,19 +25,21 @@ Chronicle is a filesystem-based CLI. Each command reads session inputs from `inp
 
 - `init` prepares local runtime dependencies. It can fetch Chronicle-managed Parakeet model files, validate or pull the default Stage 3 Ollama model, and install a stable `chronicle` symlink.
 - `validate` checks a session manifest, its inputs, and the canonical participant list.
-- `transcribe` runs the Parakeet Stage 1 transcription path and writes `stage1/raw_transcript.json` plus `stage1/raw_transcript.md`.
+- `transcribe` orchestrates the default cloud Stage 1 transcription path and writes `stage1/raw_transcript.json` plus `stage1/raw_transcript.md`.
 - `diarize` runs Stage 2 anonymous diarization and writes `stage2/diarization.json` plus `stage2/diarization.md`.
 - `identify` runs Stage 3 speaker identification or alignment and writes either `identified_conversation.*` or `aligned_transcript.*` depending on mode.
 - `organize` currently only validates the session and prepares the Stage 4 output directory. It is scaffold-only.
 - `run` validates the session and prints pipeline status for all stages.
 - `benchmark-stage1` and `benchmark-stage1-concurrency` compare Stage 1 Parakeet settings.
+- `transcribe-plan` renders a Stage 1 GCP command plan from Python-side Chronicle config instead of relying only on shell templates.
+- `transcribe-command` renders one shell-safe Stage 1 orchestration command for a named step such as `vm_create`, `bootstrap`, or `run_stage1`.
 - `benchmark-stage2` compares Stage 2 diarization backends.
 - `benchmark-stage3` compares Stage 3 automatic identification backends against an explicit truth speaker map and writes JSON and Markdown reports under `outputs/<session_id>/runs/`.
 - `models fetch parakeet` downloads the Chronicle-managed local Parakeet model directory.
 
 ## Current defaults and constraints
 
-- Stage 1 is locked to the local Parakeet path in production.
+- Stage 1 uses the cloud orchestration path in production.
 - Stage 2 uses the local SpeechBrain-backed diarization path in production.
 - Stage 3 automatic identification still defaults to the local `ollama_decomposed` backend in `--mode llm`, with `qwen3:8b` as the default Ollama model where Ollama is used.
 - `manual` and `align-only` modes do not use automatic backends.
@@ -44,7 +48,8 @@ Chronicle is a filesystem-based CLI. Each command reads session inputs from `inp
 
 ## Important options
 
-- `transcribe` accepts Parakeet runtime/model options.
+- `transcribe` accepts cloud orchestration inputs such as project id, instance name, zone, machine type, worker user, and CPU-only/GPU-enabled mode.
+- `transcribe-plan` and `transcribe-command` accept cloud orchestration inputs such as project, instance, zone, machine type, local session path, and CPU-only/GPU-enabled mode.
 - `diarize` accepts speaker-count constraints, device selection, and the separate Stage 2 Python runtime path.
 - `identify` accepts `--mode llm|manual|align-only`, `--backend`, `--model`, `--speaker-map`, and `--participants-file`.
 - `identify --backend` supports `ollama_decomposed`, `speechbrain_refmatch`, and `speechbrain_hybrid` when automatic Stage 3 assignment is requested.

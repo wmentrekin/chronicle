@@ -43,20 +43,24 @@ docs/
   architecture.md
   cli.md
   artifacts.md
-  stages/
-    stage1-transcription.md
+  stage-1/
+    transcription.md
+    cloud-requirements.yaml
+    cloud-research.md
+    cloud-runbook.md
+  stage-2/
     stage2-diarization.md
+  stage-3/
     stage3-identification.md
+  stage-4/
     stage4-organization.md
-agent-context/
-  ...
 ```
 
 `inputs/`, `outputs/`, and `models/` are private working directories and are not committed.
 
 ## Current stage summary
 
-- Stage 1 transcribes audio with local Parakeet by default and falls back to `faster-whisper` when needed.
+- Stage 1 transcribes audio through the default cloud orchestration path that provisions a Parakeet worker.
 - Stage 2 writes anonymous diarization artifacts with the local SpeechBrain-backed production path.
 - Stage 3 reconciles Stage 1 and Stage 2, then maps anonymous speakers to canonical participants with `llm`, `manual`, or `align-only` modes.
 - Stage 4 is scaffold-only today.
@@ -65,10 +69,10 @@ agent-context/
 
 - `docs/cli.md`
 - `docs/artifacts.md`
-- `docs/stages/stage1-transcription.md`
-- `docs/stages/stage2-diarization.md`
-- `docs/stages/stage3-identification.md`
-- `docs/stages/stage4-organization.md`
+- `docs/stage-1/transcription.md`
+- `docs/stage-2/stage2-diarization.md`
+- `docs/stage-3/stage3-identification.md`
+- `docs/stage-4/stage4-organization.md`
 
 ## Known limitations
 

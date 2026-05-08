@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import getpass
+import json
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -12,10 +14,13 @@ from ..exceptions import SessionValidationError, StageExecutionError
 from ..paths import (
     DEFAULT_PARAKEET_MODEL_DIR,
     DEFAULT_PARTICIPANTS_FILE,
+    OUTPUTS_ROOT,
     ensure_output_dirs,
+    input_session_dir,
     repo_relative,
     session_manifest_path,
 )
+from ..stage1 import GcpStage1Config, build_gcp_stage1_plan, run_gcp_stage1_plan
 from ..session import require_valid_session, resolve_audio_path, resolve_context_path
 from ..stage1.service import DEFAULT_STAGE1_PARAKEET_MODEL, execute_stage1
 from ..utils import write_run_metadata
@@ -33,42 +38,63 @@ def register(app: typer.Typer) -> None:
             dir_okay=False,
             readable=True,
         ),
-        model_name: str = typer.Option(
-            DEFAULT_STAGE1_PARAKEET_MODEL,
-            "--model",
-            help="Parakeet model name.",
+        project_id: str | None = typer.Option(
+            None,
+            "--project-id",
+            help="Google Cloud project id for the Stage 1 worker.",
         ),
-        force: bool = typer.Option(False, "--force", help="Overwrite existing stage 1 artifacts."),
-        device: str = typer.Option("cpu", "--device", help="Execution device for Parakeet."),
-        local_files_only: bool = typer.Option(
-            True,
-            "--local-files-only/--allow-download",
-            help="Only use models already available locally.",
+        instance_name: str | None = typer.Option(
+            None,
+            "--instance-name",
+            help="Compute Engine instance name. Defaults to a session-derived name.",
         ),
+        zone: str = typer.Option(
+            "us-central1-a",
+            "--zone",
+            help="Google Cloud zone for the Stage 1 worker.",
+        ),
+        machine_type: str = typer.Option(
+            "e2-standard-8",
+            "--machine-type",
+            help="Compute Engine machine type for the Stage 1 worker.",
+        ),
+        gpu_enabled: bool = typer.Option(
+            False,
+            "--gpu-enabled/--cpu-only",
+            help="Use a GPU-backed worker instead of the default CPU worker.",
+        ),
+        gpu_type: str = typer.Option(
+            "nvidia-l4",
+            "--gpu-type",
+            help="GPU accelerator type when --gpu-enabled is set.",
+        ),
+        worker_user: str = typer.Option(
+            getpass.getuser(),
+            "--worker-user",
+            help="Linux username on the worker VM.",
+        ),
+        keep_instance: bool = typer.Option(
+            False,
+            "--keep-instance/--teardown",
+            help="Keep the worker instance running after Stage 1 completes.",
+        ),
+        local_worker: bool = typer.Option(False, "--local-worker", hidden=True),
+        model_name: str = typer.Option(DEFAULT_STAGE1_PARAKEET_MODEL, "--model", hidden=True),
+        force: bool = typer.Option(False, "--force", hidden=True),
+        device: str = typer.Option("cpu", "--device", hidden=True),
+        local_files_only: bool = typer.Option(True, "--local-files-only/--allow-download", hidden=True),
         parakeet_model_dir: Path = typer.Option(
             DEFAULT_PARAKEET_MODEL_DIR,
             "--parakeet-model-dir",
             file_okay=False,
             dir_okay=True,
-            help="Chronicle-managed local directory for Parakeet model files.",
+            hidden=True,
         ),
-        parakeet_chunk_length_s: int = typer.Option(
-            15,
-            "--parakeet-chunk-length-s",
-            help="Chunk length in seconds for the Parakeet path.",
-        ),
-        parakeet_batch_size: int = typer.Option(
-            4,
-            "--parakeet-batch-size",
-            help="Number of Parakeet chunks to send per pipeline call.",
-        ),
-        experimental_overlap: bool = typer.Option(
-            False,
-            "--experimental-overlap/--no-experimental-overlap",
-            help="Enable experimental Parakeet overlap mode using half-window stride.",
-        ),
+        parakeet_chunk_length_s: int = typer.Option(15, "--parakeet-chunk-length-s", hidden=True),
+        parakeet_batch_size: int = typer.Option(4, "--parakeet-batch-size", hidden=True),
+        experimental_overlap: bool = typer.Option(False, "--experimental-overlap/--no-experimental-overlap", hidden=True),
     ) -> None:
-        """Run Stage 1 transcription."""
+        """Run Stage 1 transcription on the default cloud worker."""
         try:
             manifest = require_valid_session(session_id, console, participants_file)
         except SessionValidationError as exc:
@@ -84,6 +110,39 @@ def register(app: typer.Typer) -> None:
                 directories["stage1"] / "raw_transcript.md",
             ],
         )
+
+        if not local_worker:
+            if not project_id:
+                console.print(Panel("`--project-id` is required for Stage 1 orchestration.", title="Stage 1 Failed", style="red"))
+                raise typer.Exit(code=1)
+            cloud_config = GcpStage1Config(
+                project_id=project_id,
+                instance_name=instance_name or f"chronicle-stage1-{manifest.session_id}",
+                session_id=manifest.session_id,
+                zone=zone,
+                machine_type=machine_type,
+                gpu_enabled=gpu_enabled,
+                gpu_type=gpu_type,
+                local_output_dir=OUTPUTS_ROOT.as_posix(),
+                local_participants_file=participants_file.as_posix(),
+            )
+            plan = build_gcp_stage1_plan(
+                config=cloud_config,
+                local_session_dir=input_session_dir(manifest.session_id),
+                worker_user=worker_user,
+            )
+            try:
+                run_gcp_stage1_plan(plan, console=console, keep_instance=keep_instance)
+                console.print(
+                    Panel(
+                        f"Stage 1 completed for session `{manifest.session_id}`.",
+                        title="Stage 1 Complete",
+                    )
+                )
+            except StageExecutionError as exc:
+                console.print(Panel(str(exc), title="Stage 1 Failed", style="red"))
+                raise typer.Exit(code=1) from exc
+            return
 
         started_at = datetime.now(timezone.utc)
         run_notes: list[str] = []
@@ -147,3 +206,81 @@ def register(app: typer.Typer) -> None:
                 started_at=started_at,
             )
             console.print(f"Run metadata: {run_path.as_posix()}")
+
+    @app.command("transcribe-plan")
+    def transcribe_plan_command(
+        session_id: str = typer.Argument(..., help="Session folder name under inputs/sessions/."),
+        project_id: str = typer.Option(..., "--project-id", help="Google Cloud project id."),
+        instance_name: str = typer.Option(..., "--instance-name", help="Compute Engine instance name."),
+        local_session_dir: Path = typer.Option(..., "--local-session-dir", exists=True, file_okay=False, dir_okay=True),
+        worker_user: str = typer.Option(getpass.getuser(), "--worker-user", help="Linux username on the worker VM."),
+        zone: str = typer.Option("us-central1-a", "--zone", help="Google Cloud zone."),
+        machine_type: str = typer.Option("e2-standard-8", "--machine-type", help="Compute Engine machine type."),
+        gpu_enabled: bool = typer.Option(False, "--gpu-enabled/--cpu-only", help="Include GPU accelerator flags."),
+        gpu_type: str = typer.Option("nvidia-l4", "--gpu-type", help="GPU accelerator type."),
+        local_output_dir: str = typer.Option("./outputs", "--local-output-dir", help="Local destination for downloaded outputs."),
+        local_participants_file: str = typer.Option(
+            "inputs/global/participants.yaml",
+            "--local-participants-file",
+            help="Local participants file to upload.",
+        ),
+    ) -> None:
+        """Render a Stage 1 cloud command plan."""
+        config = GcpStage1Config(
+            project_id=project_id,
+            instance_name=instance_name,
+            session_id=session_id,
+            zone=zone,
+            machine_type=machine_type,
+            gpu_enabled=gpu_enabled,
+            gpu_type=gpu_type,
+            local_output_dir=local_output_dir,
+            local_participants_file=local_participants_file,
+        )
+        plan = build_gcp_stage1_plan(
+            config=config,
+            local_session_dir=local_session_dir,
+            worker_user=worker_user,
+        )
+        typer.echo(json.dumps(plan.asdict(), indent=2))
+
+    @app.command("transcribe-command")
+    def transcribe_command_command(
+        step: str = typer.Argument(..., help="Stage 1 step id."),
+        session_id: str = typer.Argument(..., help="Session folder name under inputs/sessions/."),
+        project_id: str = typer.Option(..., "--project-id", help="Google Cloud project id."),
+        instance_name: str = typer.Option(..., "--instance-name", help="Compute Engine instance name."),
+        local_session_dir: Path = typer.Option(..., "--local-session-dir", exists=True, file_okay=False, dir_okay=True),
+        worker_user: str = typer.Option(getpass.getuser(), "--worker-user", help="Linux username on the worker VM."),
+        zone: str = typer.Option("us-central1-a", "--zone", help="Google Cloud zone."),
+        machine_type: str = typer.Option("e2-standard-8", "--machine-type", help="Compute Engine machine type."),
+        gpu_enabled: bool = typer.Option(False, "--gpu-enabled/--cpu-only", help="Include GPU accelerator flags."),
+        gpu_type: str = typer.Option("nvidia-l4", "--gpu-type", help="GPU accelerator type."),
+        local_output_dir: str = typer.Option("./outputs", "--local-output-dir", help="Local destination for downloaded outputs."),
+        local_participants_file: str = typer.Option(
+            "inputs/global/participants.yaml",
+            "--local-participants-file",
+            help="Local participants file to upload.",
+        ),
+    ) -> None:
+        """Render one shell-safe Stage 1 orchestration command."""
+        config = GcpStage1Config(
+            project_id=project_id,
+            instance_name=instance_name,
+            session_id=session_id,
+            zone=zone,
+            machine_type=machine_type,
+            gpu_enabled=gpu_enabled,
+            gpu_type=gpu_type,
+            local_output_dir=local_output_dir,
+            local_participants_file=local_participants_file,
+        )
+        plan = build_gcp_stage1_plan(
+            config=config,
+            local_session_dir=local_session_dir,
+            worker_user=worker_user,
+        )
+        try:
+            typer.echo(plan.shell_command(step))
+        except KeyError as exc:
+            raise typer.BadParameter(str(exc)) from exc

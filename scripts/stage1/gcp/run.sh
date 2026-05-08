@@ -2,12 +2,12 @@
 set -euo pipefail
 
 PROJECT_ID="${PROJECT_ID:-}"
-ZONE="${ZONE:-us-east1-c}"
+ZONE="${ZONE:-us-central1-a}"
 INSTANCE_NAME="${INSTANCE_NAME:-}"
 SESSION_ID="${SESSION_ID:-}"
-REMOTE_REPO_DIR="${REMOTE_REPO_DIR:-$HOME/chronicle}"
-REMOTE_SESSION_DIR="${REMOTE_SESSION_DIR:-$HOME/chronicle-stage1/sessions}"
+WORKER_REPO_DIR="${WORKER_REPO_DIR:-/home/${USER}/chronicle}"
 MODEL_NAME="${MODEL_NAME:-nvidia/parakeet-ctc-0.6b}"
+PYTHON_VERSION="${PYTHON_VERSION:-3.11}"
 DRY_RUN="${DRY_RUN:-1}"
 
 if [[ -z "${PROJECT_ID}" || -z "${INSTANCE_NAME}" || -z "${SESSION_ID}" ]]; then
@@ -15,13 +15,13 @@ if [[ -z "${PROJECT_ID}" || -z "${INSTANCE_NAME}" || -z "${SESSION_ID}" ]]; then
   exit 1
 fi
 
-remote_command=$(
+worker_command=$(
   cat <<EOF
 set -euo pipefail
-cd '${REMOTE_REPO_DIR}'
-source .venv/bin/activate
+cd '${WORKER_REPO_DIR}'
 export MODEL_NAME='${MODEL_NAME}'
-chronicle transcribe '${SESSION_ID}'
+export PATH="\$HOME/.local/bin:\$PATH"
+uv run --python '${PYTHON_VERSION}' chronicle transcribe '${SESSION_ID}' --local-worker
 EOF
 )
 
@@ -29,7 +29,7 @@ cmd=(
   gcloud compute ssh "${INSTANCE_NAME}"
   --project "${PROJECT_ID}"
   --zone "${ZONE}"
-  --command "${remote_command}"
+  --command "${worker_command}"
 )
 
 echo "Run command:"

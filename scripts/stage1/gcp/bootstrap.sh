@@ -4,6 +4,7 @@ set -euo pipefail
 MODEL_NAME="${MODEL_NAME:-nvidia/parakeet-ctc-0.6b}"
 CHRONICLE_REPO_DIR="${CHRONICLE_REPO_DIR:-$HOME/chronicle}"
 SESSION_DIR="${SESSION_DIR:-$HOME/chronicle-stage1}"
+PYTHON_VERSION="${PYTHON_VERSION:-3.11}"
 DRY_RUN="${DRY_RUN:-1}"
 
 cat <<EOF
@@ -19,8 +20,11 @@ EOF
 
 commands=(
   "mkdir -p '${SESSION_DIR}'"
-  "cd '${CHRONICLE_REPO_DIR}' && uv sync --extra stage1"
-  "cd '${CHRONICLE_REPO_DIR}' && chronicle models fetch parakeet"
+  "curl -LsSf https://astral.sh/uv/install.sh | sh"
+  "export PATH=\"\$HOME/.local/bin:\$PATH\""
+  "uv python install '${PYTHON_VERSION}'"
+  "cd '${CHRONICLE_REPO_DIR}' && uv sync --python '${PYTHON_VERSION}' --group dev --group stage1-parakeet"
+  "cd '${CHRONICLE_REPO_DIR}' && uv run --python '${PYTHON_VERSION}' chronicle models fetch parakeet"
 )
 
 printf 'Bootstrap commands:\n'
@@ -35,8 +39,11 @@ fi
 
 mkdir -p "${SESSION_DIR}"
 if [[ -d "${CHRONICLE_REPO_DIR}" ]]; then
-  (cd "${CHRONICLE_REPO_DIR}" && uv sync --extra stage1)
-  (cd "${CHRONICLE_REPO_DIR}" && chronicle models fetch parakeet)
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  export PATH="$HOME/.local/bin:$PATH"
+  uv python install "${PYTHON_VERSION}"
+  (cd "${CHRONICLE_REPO_DIR}" && uv sync --python "${PYTHON_VERSION}" --group dev --group stage1-parakeet)
+  (cd "${CHRONICLE_REPO_DIR}" && uv run --python "${PYTHON_VERSION}" chronicle models fetch parakeet)
 else
   echo "CHRONICLE_REPO_DIR does not exist: ${CHRONICLE_REPO_DIR}" >&2
   exit 1

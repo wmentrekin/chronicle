@@ -83,8 +83,8 @@ def decode_audio_to_mono_16k(
         import imageio_ffmpeg
     except Exception as exc:
         raise StageExecutionError(
-            "Audio decoding requires the `imageio-ffmpeg` package. Install a Stage 1 dependency group first, "
-            "for example `uv sync --group stage1-faster-whisper` or `uv sync --group stage1-parakeet`."
+            "Audio decoding requires the `imageio-ffmpeg` package. Install the Stage 1 Parakeet dependency group first, "
+            "for example `uv sync --group stage1-parakeet`."
         ) from exc
 
     ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
