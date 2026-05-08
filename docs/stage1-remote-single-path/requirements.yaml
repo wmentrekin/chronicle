@@ -1,0 +1,80 @@
+# Contract: requirements handoff from /discover to /plan and /refine
+
+artifact: requirements
+feature: "stage1-remote-single-path"
+status: draft
+owner_skill: discover
+
+summary:
+  problem: "Stage 1 transcription needs a single reliable remote execution path that is faster and easier to operate than the current laptop workflow."
+  motivation: "The project needs one operationally simple Stage 1 direction that preserves Chronicle's stage isolation and file-based contracts while allowing compute to run off-laptop."
+  requested_outcome: "Define a Stage 1 v2 direction with one remote compute path, one transcription model, and one standard remote execution process."
+
+goals:
+  - "Refocus Stage 1 on one approved remote execution path rather than multiple local backends."
+  - "Choose one cloud/provider path for Stage 1 based on feasibility, cost shape, and operational simplicity."
+  - "Choose one transcription model for Stage 1 and eliminate Stage 1 backend/model selection from the future remote flow."
+  - "Preserve Chronicle's stage isolation and file-based artifact contracts while allowing Stage 1 compute to run off-laptop."
+  - "Keep sensitive interview data under the user's direct cloud account rather than routing audio through third-party inference APIs."
+
+non_goals:
+  - "Do not redesign Stage 2, Stage 3, or Stage 4 in this task."
+  - "Do not implement the remote Stage 1 system in this discovery task."
+  - "Do not preserve Stage 1 support for multiple production backends in the v2 direction."
+  - "Do not introduce a web-app-first product redesign or database-first architecture."
+  - "Do not choose a hosted external transcription API as the default Stage 1 path."
+
+constraints:
+  technical:
+    - "Chronicle must preserve strict stage isolation: Stage 1 consumes session audio and produces Stage 1 artifacts only."
+    - "Filesystem contracts remain authoritative: remote execution must still produce the same Stage 1 artifact shapes consumed downstream."
+    - "The project is Python 3.11 and currently has optional Stage 1 dependency groups; future changes should reduce variability rather than add more backend combinations."
+    - "The remote path should be feasible on a single small GPU machine rather than requiring distributed inference."
+  product:
+    - "The user explicitly wants one solid Stage 1 process, not a menu of backend choices."
+    - "The remote path should be materially faster or less painful operationally than the current laptop workflow."
+    - "The chosen provider should be realistic for an individual developer experimenting with cloud resources, including trial/free-credit evaluation where possible."
+  process:
+    - "This phase is discovery only and must end with requirements strong enough for /plan."
+    - "Current vendor pricing/free-tier facts are time-sensitive and must be treated as research findings, not permanent assumptions."
+
+assumptions:
+  - "A cloud VM under the user's own account is acceptable even though Chronicle is local-first by default, because the user explicitly wants to explore remote execution."
+  - "Temporary remote handling of private audio is acceptable if the pipeline remains under the user's control and does not depend on third-party inference APIs."
+  - "A single NVIDIA GPU class machine is sufficient for the first remote Stage 1 iteration."
+
+repo_context:
+  relevant_paths:
+    - "src/chronicle/cli/stage1.py"
+    - "src/chronicle/stage1/service.py"
+    - "src/chronicle/stage1/parakeet.py"
+    - "src/chronicle/stage1/faster_whisper.py"
+    - "src/chronicle/cli/benchmark.py"
+    - "src/chronicle/session.py"
+    - "docs/cli.md"
+    - "README.md"
+    - "outputs/2026-02-24_interview_paternal-grandparents/runs/"
+  systems_in_scope:
+    - "Stage 1 CLI surface"
+    - "Stage 1 backend/model selection"
+    - "Stage 1 artifact contract"
+    - "Stage 1 run metadata assumptions"
+    - "Remote compute selection for Stage 1 only"
+  prior_artifacts: []
+
+acceptance_criteria:
+  - "A follow-on plan can remove Stage 1 production support for multiple backends and center the command/service around one remote execution path."
+  - "The chosen Stage 1 remote provider path is explicit, justified, and documented as the only supported v2 production direction for this phase."
+  - "The chosen Stage 1 model is explicit, justified, and documented as the only supported v2 production transcription model for this phase."
+  - "The future implementation preserves current Stage 1 artifact contracts or defines any contract deltas explicitly before implementation."
+  - "The future implementation does not depend on public hosted transcription APIs or shared free GPU products as the primary path."
+  - "The future implementation can be operated under the user's own cloud account with clear cost boundaries."
+
+open_questions:
+  - "Should the first remote Stage 1 implementation be a long-lived VM worker, an on-demand VM job runner, or a container/job abstraction on the chosen provider?"
+  - "How much of the current Stage 1 benchmark surface should survive after the single-path remote design is implemented?"
+  - "Should Stage 1 keep any local fallback at all for development, or should the remote branch intentionally remove local production execution from the main path?"
+
+freeze:
+  ready_for_plan: true
+  blockers: []
