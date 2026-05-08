@@ -26,7 +26,7 @@ Current fields:
 - `source_format`
 - `notes`
 - `tags`
-- `stage1_model_preference`
+- `stage1_model_preference` (retained for manifest compatibility; Stage 1 ignores it)
 
 Validation requires canonical names in `participants`, `primary_interviewees`, and `people_likely_discussed` to exist in `inputs/global/participants.yaml`.
 

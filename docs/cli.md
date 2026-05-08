@@ -23,7 +23,7 @@ Chronicle is a filesystem-based CLI. Each command reads session inputs from `inp
 
 - `init` prepares local runtime dependencies. It can fetch Chronicle-managed Parakeet model files, validate or pull the default Stage 3 Ollama model, and install a stable `chronicle` symlink.
 - `validate` checks a session manifest, its inputs, and the canonical participant list.
-- `transcribe` runs Stage 1 transcription and writes `stage1/raw_transcript.json` plus `stage1/raw_transcript.md`.
+- `transcribe` runs the Parakeet Stage 1 transcription path and writes `stage1/raw_transcript.json` plus `stage1/raw_transcript.md`.
 - `diarize` runs Stage 2 anonymous diarization and writes `stage2/diarization.json` plus `stage2/diarization.md`.
 - `identify` runs Stage 3 speaker identification or alignment and writes either `identified_conversation.*` or `aligned_transcript.*` depending on mode.
 - `organize` currently only validates the session and prepares the Stage 4 output directory. It is scaffold-only.
@@ -35,7 +35,7 @@ Chronicle is a filesystem-based CLI. Each command reads session inputs from `inp
 
 ## Current defaults and constraints
 
-- Stage 1 prefers local Parakeet and can fall back to `faster-whisper` when required.
+- Stage 1 is locked to the local Parakeet path in production.
 - Stage 2 uses the local SpeechBrain-backed diarization path in production.
 - Stage 3 automatic identification still defaults to the local `ollama_decomposed` backend in `--mode llm`, with `qwen3:8b` as the default Ollama model where Ollama is used.
 - `manual` and `align-only` modes do not use automatic backends.
@@ -44,7 +44,7 @@ Chronicle is a filesystem-based CLI. Each command reads session inputs from `inp
 
 ## Important options
 
-- `transcribe` accepts backend selection and Parakeet runtime/model options.
+- `transcribe` accepts Parakeet runtime/model options.
 - `diarize` accepts speaker-count constraints, device selection, and the separate Stage 2 Python runtime path.
 - `identify` accepts `--mode llm|manual|align-only`, `--backend`, `--model`, `--speaker-map`, and `--participants-file`.
 - `identify --backend` supports `ollama_decomposed`, `speechbrain_refmatch`, and `speechbrain_hybrid` when automatic Stage 3 assignment is requested.

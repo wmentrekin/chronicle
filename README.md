@@ -136,7 +136,9 @@ chronicle run <session_id>
 - Canonical people metadata lives in `inputs/global/participants.yaml`.
 - Public users should start from the sanitized scaffolds under `examples/inputs/` and create their own local `inputs/` tree from those templates.
 - Stage 1 writes one session-level transcript artifact per session, even when the session contains multiple audio files.
+- `chronicle transcribe` is locked to the local Parakeet transcription path.
 - `chronicle diarize` now uses the local SpeechBrain-based anonymous diarization path by default.
 - `benchmark-stage2` remains available for backend comparison against pyannote.
 - Stage 3 reconciles Stage 1 transcript output with Stage 2 anonymous diarization and supports `llm`, `manual`, and `align-only` modes.
 - Detailed implementation walkthroughs live under `docs/`.
+- Early Stage 1 remote scaffolding templates live under `scripts/remote/stage1/`.

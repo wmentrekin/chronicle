@@ -12,11 +12,8 @@ from rich.table import Table
 from ..exceptions import SessionValidationError, StageExecutionError
 from ..paths import DEFAULT_PARAKEET_MODEL_DIR, DEFAULT_PARTICIPANTS_FILE, REPO_ROOT, ensure_output_dirs, repo_relative
 from ..session import require_valid_session
-from ..stage1.service import (
-    DEFAULT_STAGE1_PARAKEET_MODEL,
-    benchmark_parakeet_concurrency,
-    benchmark_parakeet_chunk_sizes,
-)
+from ..stage1.benchmark import benchmark_parakeet_chunk_sizes, benchmark_parakeet_concurrency
+from ..stage1.service import DEFAULT_STAGE1_PARAKEET_MODEL
 from ..stage2.benchmark import (
     DEFAULT_STAGE2_BACKEND,
     DEFAULT_STAGE2_PYANNOTE_MODEL,

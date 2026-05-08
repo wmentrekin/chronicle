@@ -17,12 +17,12 @@ Stage 1 converts raw session audio into a session-level transcript. It does not 
 
 ## Current behavior
 
-- Default backend is local Parakeet.
-- `faster-whisper` remains available as a compatibility fallback.
+- Stage 1 is locked to the local Parakeet path.
 - Audio is decoded locally before transcription.
 - The session transcript is assembled from the source audio files in order.
 - The transcript keeps source audio provenance and sequential session-relative timestamps.
 - Stage 1 writes run metadata under `outputs/<session_id>/runs/`.
+- `stage1_model_preference` remains in the session manifest schema for compatibility, but Stage 1 ignores it.
 
 ## What Stage 1 does not do
 
@@ -34,4 +34,3 @@ Stage 1 converts raw session audio into a session-level transcript. It does not 
 
 - Stage 1 is optimized for local execution, not remote services.
 - The Parakeet path depends on local model availability and the current Python environment.
-
