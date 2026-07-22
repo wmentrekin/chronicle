@@ -121,6 +121,13 @@ def build_gcp_stage1_plan(
         "--project",
         config.project_id,
     ]
+    resolved_machine_type = config.machine_type
+    if config.gpu_enabled and config.machine_type == "e2-standard-8":
+        if "l4" in config.gpu_type.lower():
+            resolved_machine_type = "g2-standard-4"
+        else:
+            resolved_machine_type = "n1-standard-4"
+
     vm_create = [
         "gcloud",
         "compute",
@@ -132,7 +139,7 @@ def build_gcp_stage1_plan(
         "--zone",
         config.zone,
         "--machine-type",
-        config.machine_type,
+        resolved_machine_type,
         "--boot-disk-size",
         config.boot_disk_size,
         "--image-family",
