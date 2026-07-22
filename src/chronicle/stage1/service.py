@@ -36,7 +36,10 @@ from ..utils import (
     write_json,
 )
 
+from .whisper import transcribe_with_faster_whisper
+
 DEFAULT_STAGE1_PARAKEET_MODEL = "nvidia/parakeet-ctc-0.6b"
+DEFAULT_STAGE1_WHISPER_MODEL = "large-v3-turbo"
 
 
 def execute_stage1(
@@ -46,6 +49,9 @@ def execute_stage1(
     force: bool,
     model_name: Optional[str],
     device: str,
+    backend: str = "parakeet",
+    whisper_compute_type: str = "int8",
+    whisper_vad_filter: bool = True,
     parakeet_chunk_length_s: int = 15,
     parakeet_batch_size: int = 1,
     parakeet_overlap_stride_s: Optional[float] = None,
@@ -53,7 +59,13 @@ def execute_stage1(
     local_files_only: bool = True,
     console: Optional[Console] = None,
 ) -> tuple[list[str], list[str], list[str]]:
-    resolved_model_name = model_name or DEFAULT_STAGE1_PARAKEET_MODEL
+    if backend not in ("whisper", "parakeet"):
+        raise StageExecutionError(f"Unsupported Stage 1 backend `{backend}`. Expected `whisper` or `parakeet`.")
+
+    if backend == "whisper":
+        resolved_model_name = model_name or DEFAULT_STAGE1_WHISPER_MODEL
+    else:
+        resolved_model_name = model_name or DEFAULT_STAGE1_PARAKEET_MODEL
 
     generated_paths: list[str] = []
     skipped_paths: list[str] = []
@@ -79,24 +91,26 @@ def execute_stage1(
     if console is not None:
         console.print(Panel(build_stage1_audio_summary(audio_probes), title="Stage 1 Audio Summary"))
 
-    parakeet_local_model_dir = ensure_local_parakeet_model(
-        model_name=resolved_model_name,
-        model_dir=parakeet_model_dir,
-        allow_download=not local_files_only,
-    )
-    notes.append(f"Using local Parakeet model files from {repo_relative(parakeet_local_model_dir)}.")
+    shared_parakeet_pipeline = None
+    if backend == "parakeet":
+        parakeet_local_model_dir = ensure_local_parakeet_model(
+            model_name=resolved_model_name,
+            model_dir=parakeet_model_dir,
+            allow_download=not local_files_only,
+        )
+        notes.append(f"Using local Parakeet model files from {repo_relative(parakeet_local_model_dir)}.")
 
-    if console is not None:
-        with console.status(f"Loading Parakeet:{resolved_model_name} once for this session..."):
+        if console is not None:
+            with console.status(f"Loading Parakeet:{resolved_model_name} once for this session..."):
+                _, shared_parakeet_pipeline = build_parakeet_pipeline(
+                    model_dir=parakeet_local_model_dir,
+                    device=device,
+                )
+        else:
             _, shared_parakeet_pipeline = build_parakeet_pipeline(
                 model_dir=parakeet_local_model_dir,
                 device=device,
             )
-    else:
-        _, shared_parakeet_pipeline = build_parakeet_pipeline(
-            model_dir=parakeet_local_model_dir,
-            device=device,
-        )
 
     processed_session_seconds = 0.0
     stage_started_at = time.perf_counter()
@@ -164,19 +178,20 @@ def execute_stage1(
                         )
                     )
 
-            if console is not None:
-                with console.status(f"Decoding {audio_label} to mono 16 kHz audio..."):
+            if backend == "parakeet":
+                if console is not None:
+                    with console.status(f"Decoding {audio_label} to mono 16 kHz audio..."):
+                        audio = decode_audio_to_mono_16k(audio_path)
+                else:
                     audio = decode_audio_to_mono_16k(audio_path)
-            else:
-                audio = decode_audio_to_mono_16k(audio_path)
-            audio_duration_seconds = len(audio) / STAGE1_TRANSCRIPT_SAMPLE_RATE
+                audio_duration_seconds = len(audio) / STAGE1_TRANSCRIPT_SAMPLE_RATE
 
             def report_progress(completed_chunks: int, total_chunks: int, processed_audio_seconds: float) -> None:
                 if overall_progress is None or progress_task_id is None:
                     return
                 completed_session_seconds = min(
                     total_session_duration,
-                    processed_session_seconds + min(processed_audio_seconds, audio_duration_seconds),
+                    processed_session_seconds + min(processed_audio_seconds, total_session_duration),
                 )
                 elapsed = max(time.perf_counter() - stage_started_at, 0.001)
                 throughput = completed_session_seconds / elapsed
@@ -184,10 +199,9 @@ def execute_stage1(
                 eta_seconds = remaining / throughput if throughput > 0 else None
                 throughput_text = (
                     f"{throughput / 60.0:.2f} audio-min/wall-min | "
-                    f"{completed_chunks}/{total_chunks} chunks | "
                     f"ETA {format_duration_summary(eta_seconds or 0.0)}"
                     if eta_seconds is not None
-                    else f"{completed_chunks}/{total_chunks} chunks"
+                    else "transcribing..."
                 )
                 overall_progress.update(
                     progress_task_id,
@@ -196,18 +210,33 @@ def execute_stage1(
                     throughput=throughput_text,
                 )
 
-            model_info, segments, word_timestamps = transcribe_with_parakeet_pipeline(
-                audio=audio,
-                language=manifest.language,
-                model_name=resolved_model_name,
-                model_dir=parakeet_local_model_dir,
-                device=device,
-                chunk_length_s=parakeet_chunk_length_s,
-                asr_pipeline=shared_parakeet_pipeline,
-                batch_size=parakeet_batch_size,
-                overlap_stride_s=parakeet_overlap_stride_s,
-                progress_callback=report_progress,
-            )
+            if backend == "whisper":
+                model_info, segments, word_timestamps = transcribe_with_faster_whisper(
+                    audio_path=audio_path,
+                    language=manifest.language,
+                    model_name=resolved_model_name,
+                    device=device,
+                    compute_type=whisper_compute_type,
+                    vad_filter=whisper_vad_filter,
+                    progress_callback=report_progress,
+                )
+                audio_duration_seconds = max(
+                    (parse_timestamp_seconds(segments[-1]["end"]) if segments and segments[-1].get("end") else 0.0) or 0.0,
+                    1.0,
+                )
+            else:
+                model_info, segments, word_timestamps = transcribe_with_parakeet_pipeline(
+                    audio=audio,
+                    language=manifest.language,
+                    model_name=resolved_model_name,
+                    model_dir=parakeet_local_model_dir,
+                    device=device,
+                    chunk_length_s=parakeet_chunk_length_s,
+                    asr_pipeline=shared_parakeet_pipeline,
+                    batch_size=parakeet_batch_size,
+                    overlap_stride_s=parakeet_overlap_stride_s,
+                    progress_callback=report_progress,
+                )
 
             transcript_text = "\n".join(
                 segment["text"] for segment in segments if segment.get("text")

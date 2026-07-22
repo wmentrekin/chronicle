@@ -38,6 +38,7 @@ class GcpStage1Config:
     project_id: str
     instance_name: str
     session_id: str
+    backend: str = "whisper"
     zone: str = "us-central1-a"
     machine_type: str = "e2-standard-8"
     gpu_enabled: bool = False
@@ -48,7 +49,7 @@ class GcpStage1Config:
     image_project: str = "ubuntu-os-cloud"
     tags: str = "chronicle-stage1"
     labels: str = "chronicle=1,stage=stage1,mode=cloud"
-    model_name: str = "nvidia/parakeet-ctc-0.6b"
+    model_name: str = "large-v3-turbo"
     python_version: str = "3.11"
     worker_repo_dir: str = "/home/{user}/chronicle"
     local_output_dir: str = "./outputs"
@@ -185,6 +186,9 @@ def build_gcp_stage1_plan(
             "fi"
         ),
     ]
+
+    group_flag = "--group stage1-whisper" if config.backend == "whisper" else "--group stage1-parakeet"
+    model_fetch_cmd = f" && uv run --python {config.python_version} chronicle models fetch parakeet" if config.backend == "parakeet" else ""
     bootstrap = ssh + [
         "--command",
         (
@@ -193,19 +197,21 @@ def build_gcp_stage1_plan(
             'export PATH="$HOME/.local/bin:$PATH" && '
             f"uv python install {config.python_version} && "
             f"cd {worker_repo_dir} && "
-            f"uv sync --python {config.python_version} --group dev --group stage1-parakeet && "
-            f"uv run --python {config.python_version} chronicle models fetch parakeet"
+            f"uv sync --python {config.python_version} --group dev {group_flag}"
+            f"{model_fetch_cmd}"
         ),
     ]
     upload_session = scp + ["--recurse", local_session_dir.as_posix(), f"{instance_ref}:{worker_session_root}/"]
     upload_participants = scp + [config.local_participants_file, f"{instance_ref}:{worker_global_root}/participants.yaml"]
+    device_arg = "cuda" if config.gpu_enabled else "cpu"
     run_stage1 = ssh + [
         "--command",
         (
             "set -euo pipefail && "
             f"cd {worker_repo_dir} && "
             'export PATH="$HOME/.local/bin:$PATH" && '
-            f"uv run --python {config.python_version} chronicle transcribe {config.session_id} --local-worker"
+            f"uv run --python {config.python_version} chronicle transcribe {config.session_id} --local-worker "
+            f"--backend {config.backend} --model {config.model_name} --device {device_arg}"
         ),
     ]
     download_outputs = scp + ["--recurse", f"{instance_ref}:{worker_output_root}/{config.session_id}", f"{config.local_output_dir}/"]

@@ -1,0 +1,83 @@
+# Contract: durable execution plan created by $work
+
+artifact: plan
+feature: "stage-1-faster-whisper"
+mode: "bounded-feature"
+status: draft
+owner_skill: work
+based_on: "docs/stage-1-faster-whisper/requirements.yaml"
+
+objective: "Integrate faster-whisper into Stage 1, implement benchmark comparison against Parakeet, and verify transcript output contracts."
+
+approach:
+  summary: "Add faster-whisper as a Stage 1 backend module, update pyproject.toml with a stage1-whisper dependency group, integrate it into the Stage 1 service & CLI benchmark, and validate performance/accuracy."
+  key_decisions:
+    - "Use faster-whisper with CTranslate2 and Silero VAD (vad_filter=True)."
+    - "Default model: whisper-large-v3-turbo (fastest, high accuracy) with fallback to whisper-medium.en."
+    - "Preserve Parakeet and GCP execution paths alongside faster-whisper."
+
+contracts:
+  interfaces:
+    - "transcribe_with_faster_whisper(audio_path, language, model_name, device, compute_type, vad_filter) -> (model_info, segments, word_timestamps)"
+  schemas:
+    - "Stage 1 raw_transcript.json and raw_transcript.md format unchanged."
+  config_changes:
+    - "Add optional dependency group [dependency-groups.stage1-whisper] containing faster-whisper."
+
+execution_batches:
+  - id: "B1"
+    goal: "Dependencies and faster-whisper Stage 1 Backend Module"
+    tasks:
+      - id: "T1"
+        title: "Add stage1-whisper dependency group"
+        objective: "Add faster-whisper dependency group to pyproject.toml."
+        owned_scope: ["pyproject.toml"]
+        forbidden_scope: ["src/chronicle/stage2/*", "src/chronicle/stage3/*"]
+        dependencies: []
+        parallelizable: false
+        expected_validation: ["uv sync --extra stage1-whisper or uv add"]
+      - id: "T2"
+        title: "Implement faster-whisper backend runner"
+        objective: "Create src/chronicle/stage1/whisper.py to wrap faster-whisper with Silero VAD and format output segments."
+        owned_scope: ["src/chronicle/stage1/whisper.py", "src/chronicle/stage1/service.py"]
+        forbidden_scope: ["src/chronicle/stage2/*", "src/chronicle/stage3/*"]
+        dependencies: ["T1"]
+        parallelizable: false
+        expected_validation: ["Unit tests for whisper backend formatting"]
+
+  - id: "B2"
+    goal: "Benchmarking Harness & Validation"
+    tasks:
+      - id: "T3"
+        title: "Integrate faster-whisper into Stage 1 Benchmark CLI"
+        objective: "Update src/chronicle/stage1/benchmark.py and src/chronicle/cli/benchmark.py to compare faster-whisper vs Parakeet."
+        owned_scope: ["src/chronicle/stage1/benchmark.py", "src/chronicle/cli/benchmark.py", "src/chronicle/cli/stage1.py"]
+        forbidden_scope: []
+        dependencies: ["T2"]
+        parallelizable: false
+        expected_validation: ["chronicle benchmark-stage1 or pytest"]
+      - id: "T4"
+        title: "Run pytest verification"
+        objective: "Ensure all existing and new unit tests pass cleanly."
+        owned_scope: ["tests/test_stage1.py"]
+        forbidden_scope: []
+        dependencies: ["T3"]
+        parallelizable: false
+        expected_validation: ["uv run pytest"]
+
+ordering_notes:
+  - "Dependencies (T1) -> Backend module (T2) -> Benchmark integration (T3) -> Verification (T4)."
+
+risks:
+  - "faster-whisper CTranslate2 dependency compilation on macOS requires torch or ctranslate2 wheels, but pre-built wheels exist on PyPI."
+
+open_questions: []
+
+review:
+  status: draft
+  loop_count: 0
+  notes: []
+
+checkpoint:
+  required_before_execution: true
+  status: pending

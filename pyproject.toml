@@ -41,6 +41,10 @@ stage2-speechbrain = [
   "scikit-learn>=1.5",
   "speechbrain>=1.0,<1.2",
 ]
+stage1-whisper = [
+  "faster-whisper>=1.0.0",
+  "onnxruntime<1.20.0",
+]
 
 [tool.uv]
 package = true

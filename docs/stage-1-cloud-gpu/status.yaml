@@ -1,0 +1,55 @@
+# Contract: live coordination artifact maintained by $work
+
+artifact: status
+feature: "stage-1-cloud-gpu"
+mode: "bounded-feature"
+stage: "verification"
+owner_skill: work
+
+objective: "Optimize Stage 1 cloud execution to support GPU acceleration (NVIDIA L4 / T4) with faster-whisper (CTranslate2 + CUDA), reducing 1-hour interview transcription wall-clock time to ~2 minutes."
+
+summary:
+  current_focus: "Execution & verification complete. Cloud GPU orchestration for faster-whisper is verified and ready."
+  last_completed: "Implemented GcpStage1Config, build_gcp_stage1_plan with --backend whisper & --device cuda, updated CLI flags, and added unit tests. All tests passing."
+  current_blocker: null
+
+artifacts:
+  requirements: "docs/stage-1-cloud-gpu/requirements.yaml"
+  plan: "docs/stage-1-cloud-gpu/plan.yaml"
+  implementation_report: "docs/stage-1-cloud-gpu/implementation-report.yaml"
+
+agents:
+  - id: "orchestrator"
+    role: "orchestrator"
+    model_guidance: "xhigh"
+    status: "complete"
+    stage: "verification"
+    task: "feature completed"
+    last_update: "2026-07-22"
+    blocker: ""
+
+loops:
+  planning_review:
+    count: 0
+    max: 2
+  execution_verification:
+    count: 0
+    max: 2
+
+checkpoint:
+  pre_execution_required: true
+  pre_execution_status: approved
+  options:
+    - proceed
+    - revise_plan
+    - narrow_scope
+    - stop
+
+blockers: []
+decisions:
+  - "Target Cloud GPUs (NVIDIA L4 / T4) for fast, low-cost Stage 1 transcription."
+  - "Support faster-whisper as the primary cloud GPU transcription engine."
+
+next_action: "Present user checkpoint with requirements and execution plan for approval."
+next_recommended_command: "$work"
+user_input_needed: true

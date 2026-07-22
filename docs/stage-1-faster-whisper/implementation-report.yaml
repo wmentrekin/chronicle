@@ -1,0 +1,59 @@
+# Contract: durable execution and handoff report maintained by $work
+
+artifact: implementation_report
+feature: "stage-1-faster-whisper"
+mode: "bounded-feature"
+status: complete
+owner_skill: work
+based_on: "docs/stage-1-faster-whisper/plan.yaml"
+
+summary:
+  scope_executed: "Added faster-whisper dependency group, created src/chronicle/stage1/whisper.py backend with Silero VAD, added benchmark_faster_whisper to stage1 benchmark suite, registered chronicle benchmark-stage1-whisper CLI, and added unit tests."
+  outcome: "faster-whisper backend module and CLI benchmarking harness are fully implemented, tested, and verified."
+
+task_batches_attempted: ["B1", "B2"]
+task_batches_completed: ["B1", "B2"]
+
+changes:
+  files:
+    - "pyproject.toml"
+    - "uv.lock"
+    - "src/chronicle/stage1/whisper.py"
+    - "src/chronicle/stage1/benchmark.py"
+    - "src/chronicle/cli/benchmark.py"
+    - "tests/test_stage1.py"
+  modules:
+    - "chronicle.stage1.whisper"
+    - "chronicle.stage1.benchmark"
+    - "chronicle.cli.benchmark"
+  docs_updated:
+    - "docs/stage-1-faster-whisper/status.yaml"
+    - "docs/stage-1-faster-whisper/requirements.yaml"
+    - "docs/stage-1-faster-whisper/plan.yaml"
+
+local_validation:
+  checks_run:
+    - "uv sync --group stage1-whisper"
+    - "uv run chronicle benchmark-stage1-whisper --help"
+    - "uv run pytest"
+  failures: []
+  skipped: []
+
+review_summary:
+  status: passed
+  key_findings:
+    - "faster-whisper (CTranslate2 + Silero VAD) runs cleanly under Python 3.11 with onnxruntime<1.20 constraint for macOS compatibility."
+
+test_summary:
+  status: passed
+  checks_run:
+    - "tests/test_stage1.py (52 passed)"
+  failures: []
+  gaps: []
+
+open_issues: []
+
+handoff:
+  current_state: complete
+  next_owner: "user"
+  next_action: "Run chronicle benchmark-stage1-whisper <session_id> on local sample sessions to evaluate wall-clock speed and accuracy."

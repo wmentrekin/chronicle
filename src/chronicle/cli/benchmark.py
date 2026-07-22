@@ -12,7 +12,7 @@ from rich.table import Table
 from ..exceptions import SessionValidationError, StageExecutionError
 from ..paths import DEFAULT_PARAKEET_MODEL_DIR, DEFAULT_PARTICIPANTS_FILE, REPO_ROOT, ensure_output_dirs, repo_relative
 from ..session import require_valid_session
-from ..stage1.benchmark import benchmark_parakeet_chunk_sizes, benchmark_parakeet_concurrency
+from ..stage1.benchmark import benchmark_faster_whisper, benchmark_parakeet_chunk_sizes, benchmark_parakeet_concurrency
 from ..stage1.service import DEFAULT_STAGE1_PARAKEET_MODEL
 from ..stage2.benchmark import (
     DEFAULT_STAGE2_BACKEND,
@@ -132,6 +132,88 @@ def register(app: typer.Typer) -> None:
         benchmark_path = directories["runs"] / f"stage1-benchmark.{started_at.strftime('%Y%m%dT%H%M%SZ')}.json"
         write_json(benchmark_path, result)
         console.print(f"Benchmark results: {benchmark_path.as_posix()}")
+
+    @app.command("benchmark-stage1-whisper")
+    def benchmark_stage1_whisper_command(
+        session_id: str = typer.Argument(..., help="Session folder name under inputs/sessions/."),
+        participants_file: Path = typer.Option(
+            DEFAULT_PARTICIPANTS_FILE,
+            "--participants-file",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+        ),
+        model_name: str = typer.Option(
+            "large-v3-turbo",
+            "--model",
+            help="faster-whisper model id (e.g., large-v3-turbo, medium.en, small.en).",
+        ),
+        device: str = typer.Option("cpu", "--device", help="Execution device (cpu or cuda)."),
+        compute_type: str = typer.Option("int8", "--compute-type", help="Quantization compute type (int8, float16, float32)."),
+        sample_seconds: int = typer.Option(
+            120,
+            "--sample-seconds",
+            help="Length in seconds for each sample window.",
+        ),
+        sample_count: int = typer.Option(
+            4,
+            "--sample-count",
+            help="Number of sample windows across the session.",
+        ),
+        vad_filter: bool = typer.Option(
+            True,
+            "--vad-filter/--no-vad-filter",
+            help="Enable/disable Silero VAD filtering.",
+        ),
+    ) -> None:
+        """Benchmark Stage 1 faster-whisper (CTranslate2 + Silero VAD) on session subsamples."""
+        try:
+            manifest = require_valid_session(session_id, console, participants_file)
+        except SessionValidationError as exc:
+            raise typer.Exit(code=1) from exc
+
+        directories = ensure_output_dirs(manifest.session_id)
+        started_at = datetime.now(timezone.utc)
+        try:
+            with console.status("Benchmarking Stage 1 faster-whisper..."):
+                result = benchmark_faster_whisper(
+                    manifest=manifest,
+                    sample_seconds=sample_seconds,
+                    sample_count=sample_count,
+                    model_name=model_name,
+                    device=device,
+                    compute_type=compute_type,
+                    vad_filter=vad_filter,
+                )
+        except StageExecutionError as exc:
+            console.print(Panel(str(exc), title="Whisper Benchmark Failed", style="red"))
+            raise typer.Exit(code=1) from exc
+
+        benchmark_table = Table(title="Stage 1 faster-whisper Benchmark")
+        benchmark_table.add_column("Model", style="cyan")
+        benchmark_table.add_column("Device", style="white")
+        benchmark_table.add_column("Compute", style="white")
+        benchmark_table.add_column("VAD", style="white")
+        benchmark_table.add_column("Wall Time", style="white")
+        benchmark_table.add_column("Throughput", style="white")
+        benchmark_table.add_column("Segments", style="white")
+        benchmark_table.add_column("Words", style="white")
+        for row in result["results"]:
+            benchmark_table.add_row(
+                str(row["model_name"]),
+                str(row["device"]),
+                str(row["compute_type"]),
+                "yes" if row["vad_filter"] else "no",
+                f"{row['elapsed_seconds']}s",
+                f"{row['throughput_audio_minutes_per_wall_minute']}x",
+                str(row["segment_count"]),
+                str(row["word_count"]),
+            )
+        console.print(benchmark_table)
+
+        benchmark_path = directories["runs"] / f"stage1-whisper-benchmark.{started_at.strftime('%Y%m%dT%H%M%SZ')}.json"
+        write_json(benchmark_path, result)
+        console.print(f"Whisper benchmark results: {benchmark_path.as_posix()}")
 
     @app.command("benchmark-stage1-concurrency")
     def benchmark_stage1_concurrency_command(

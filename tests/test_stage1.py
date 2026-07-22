@@ -31,17 +31,10 @@ def make_manifest(tmp_path: Path) -> SessionManifest:
     )
 
 
-def test_transcribe_rejects_backend_option() -> None:
-    result = runner.invoke(app, ["transcribe", "test-session", "--backend", "auto"])
-
-    assert result.exit_code != 0
-    assert "--backend" in result.output
-
+def test_transcribe_supports_backend_option() -> None:
     help_result = runner.invoke(app, ["transcribe", "--help"])
     assert help_result.exit_code == 0
-    assert "--backend" not in help_result.output
-    assert "--model" not in help_result.output
-    assert "--device" not in help_result.output
+    assert "--backend" in help_result.output
     assert "--project-id" in help_result.output
     assert "--cpu-only" in help_result.output
 
@@ -291,3 +284,108 @@ def test_transcribe_command_cli_renders_shell(tmp_path: Path) -> None:
 
     assert result.exit_code == 0
     assert result.stdout.strip().startswith("gcloud compute instances create demo-instance")
+
+
+def test_faster_whisper_runtime_available() -> None:
+    from chronicle.stage1.whisper import faster_whisper_runtime_available
+    assert faster_whisper_runtime_available() is True
+
+
+def test_benchmark_faster_whisper(tmp_path: Path, monkeypatch) -> None:
+    from chronicle.stage1.benchmark import benchmark_faster_whisper
+
+    manifest = make_manifest(tmp_path)
+
+    monkeypatch.setattr(
+        "chronicle.stage1.benchmark.resolve_audio_path",
+        lambda manifest_obj, audio_file: tmp_path / audio_file,
+    )
+    monkeypatch.setattr(
+        "chronicle.stage1.benchmark.probe_audio_file",
+        lambda audio_path: AudioProbe(
+            source_audio=audio_path.as_posix(),
+            duration_seconds=120.0,
+            file_size_bytes=1024,
+        ),
+    )
+
+    fake_model_info = {
+        "family": "whisper",
+        "name": "whisper-large-v3-turbo",
+        "runtime": "faster-whisper (CTranslate2)",
+        "device": "cpu",
+        "compute_type": "int8",
+        "version": "1.2.1",
+        "language": "en",
+        "vad_filter": True,
+        "timestamp_mode": "segment_and_word",
+        "notes": [],
+    }
+    fake_segments = [
+        {
+            "segment_id": 1,
+            "start": "00:00:00.000",
+            "end": "00:00:05.000",
+            "text": "Testing faster whisper benchmark.",
+            "decode_status": "ok",
+            "avg_logprob": -0.2,
+            "no_speech_prob": 0.01,
+            "compression_ratio": 1.1,
+        }
+    ]
+    fake_words = [
+        {
+            "word": "Testing",
+            "start": "00:00:00.000",
+            "end": "00:00:01.000",
+            "probability": 0.99,
+            "segment_id": 1,
+        }
+    ]
+
+    monkeypatch.setattr(
+        "chronicle.stage1.whisper.transcribe_with_faster_whisper",
+        lambda **kwargs: (fake_model_info, fake_segments, fake_words),
+    )
+
+    result = benchmark_faster_whisper(
+        manifest=manifest,
+        sample_seconds=30,
+        sample_count=2,
+        model_name="large-v3-turbo",
+        device="cpu",
+        compute_type="int8",
+        vad_filter=True,
+    )
+
+    assert result["stage"] == "stage1_whisper_benchmark"
+    assert result["session_id"] == "test-session"
+    assert len(result["results"]) == 1
+    assert result["results"][0]["backend"] == "faster-whisper"
+    assert result["results"][0]["segment_count"] == 2
+    assert result["results"][0]["word_count"] == 2
+
+
+def test_build_gcp_stage1_plan_whisper_gpu_mode(tmp_path: Path) -> None:
+    session_dir = tmp_path / "inputs" / "sessions" / "example-session"
+    session_dir.mkdir(parents=True)
+    config = GcpStage1Config(
+        project_id="demo-project",
+        instance_name="stage1-gpu-test",
+        session_id="example-session",
+        backend="whisper",
+        zone="us-central1-a",
+        machine_type="g2-standard-4",
+        gpu_enabled=True,
+        gpu_type="nvidia-l4",
+    )
+
+    plan = build_gcp_stage1_plan(config=config, local_session_dir=session_dir, worker_user="tester")
+
+    assert "--accelerator" in plan.commands["vm_create"]
+    assert "type=nvidia-l4,count=1" in " ".join(plan.commands["vm_create"])
+    assert "--group stage1-whisper" in " ".join(plan.commands["bootstrap"])
+    assert "--backend whisper" in " ".join(plan.commands["run_stage1"])
+    assert "--device cuda" in " ".join(plan.commands["run_stage1"])
+
+

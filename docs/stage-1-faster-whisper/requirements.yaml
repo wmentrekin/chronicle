@@ -1,0 +1,56 @@
+# Contract: durable task-definition handoff created by $work
+
+artifact: requirements
+feature: "stage-1-faster-whisper"
+mode: "bounded-feature"
+status: draft
+owner_skill: work
+
+summary:
+  problem: "Stage 1 currently defaults to cloud Parakeet execution or fixed-size CTC chunking, which has accuracy limits (<unk> tokens, no VAD), requires cloud VM management, or incurs GCP infrastructure complexity."
+  motivation: "faster-whisper (CTranslate2 + Silero VAD) offers zero-cost, 3x-5x faster CPU/Metal performance, native VAD sentence boundary segmentation, and superior accuracy with Whisper models (e.g., whisper-large-v3-turbo, whisper-medium.en)."
+  requested_outcome: "Add a local faster-whisper backend runner and benchmarking harness to evaluate its transcription speed, accuracy, VAD segmentation, and compliance with Chronicle's Stage 1 artifact contract."
+
+goals:
+  - "Implement a clean faster-whisper backend module under src/chronicle/stage1/whisper.py."
+  - "Support Silero VAD filtering to segment audio on natural pauses rather than arbitrary fixed chunks."
+  - "Add dependency group stage1-whisper (or update pyproject.toml) cleanly without breaking existing Parakeet/GCP setups."
+  - "Extend chronicle benchmark-stage1 (or add a benchmark runner) to compare faster-whisper against Parakeet in wall-clock runtime, RAM usage, and output quality."
+  - "Ensure faster-whisper outputs fully satisfy Stage 1 raw_transcript.json and raw_transcript.md contract schemas."
+
+non_goals:
+  - "Do not remove the cloud Parakeet path in this step (cloud VM optimization will happen after local benchmarking)."
+  - "Do not alter Stage 2, Stage 3, or Stage 4 artifact contracts."
+
+constraints:
+  technical:
+    - "Python 3.11 compatibility."
+    - "Preserve exact Stage 1 output JSON/MD artifact schema (stage, session_id, audio_files, transcript_text, segments, word_timestamps)."
+    - "Run locally on macOS (support CPU/INT8 and Metal/CoreML acceleration where available)."
+  product:
+    - "Local execution must cost $0 and require no cloud credentials or remote servers."
+
+assumptions:
+  - "faster-whisper can be installed as an optional dependency group in pyproject.toml."
+  - "Silero VAD is supported directly by faster-whisper's vad_filter=True option."
+
+repo_context:
+  relevant_paths:
+    - "src/chronicle/stage1/parakeet.py"
+    - "src/chronicle/stage1/service.py"
+    - "src/chronicle/stage1/benchmark.py"
+    - "src/chronicle/cli/stage1.py"
+    - "pyproject.toml"
+  systems_in_scope:
+    - "Stage 1 backend options"
+    - "Stage 1 benchmarking CLI"
+    - "pyproject.toml dependency groups"
+
+acceptance_criteria:
+  - "faster_whisper is available as an optional backend or benchmark runner in chronicle."
+  - "Running a benchmark on a session produces a structured report comparing faster-whisper vs Parakeet."
+  - "Generated Stage 1 transcripts validate cleanly with chronicle validate."
+  - "All existing unit tests pass."
+
+ready_for_planning: true
+planning_blockers: []

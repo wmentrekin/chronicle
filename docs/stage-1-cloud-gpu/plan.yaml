@@ -1,0 +1,84 @@
+# Contract: durable execution plan created by $work
+
+artifact: plan
+feature: "stage-1-cloud-gpu"
+mode: "bounded-feature"
+status: draft
+owner_skill: work
+based_on: "docs/stage-1-cloud-gpu/requirements.yaml"
+
+objective: "Integrate faster-whisper GPU support into Stage 1 cloud orchestration, update CLI flags, and verify plan generation and execution."
+
+approach:
+  summary: "Update GcpStage1Config and build_gcp_stage1_plan in src/chronicle/stage1/orchestration.py to accept backend choice (whisper vs parakeet), update worker bootstrap steps to install GPU drivers/dependencies, wire CLI flags in chronicle transcribe, and verify with tests."
+  key_decisions:
+    - "Make faster-whisper with NVIDIA GPU (L4/T4) the primary recommended cloud Stage 1 path."
+    - "Support compute_type float16 / int8_float16 on GPU for maximum throughput."
+    - "Preserve automatic instance teardown after outputs are downloaded."
+
+contracts:
+  interfaces:
+    - "GcpStage1Config(..., backend='whisper', model_name='large-v3-turbo', gpu_type='nvidia-l4', gpu_count=1)"
+    - "execute_stage1(..., backend='whisper', ...)"
+  schemas:
+    - "Stage 1 JSON and MD artifact contracts remain unchanged."
+
+execution_batches:
+  - id: "B1"
+    goal: "Cloud Orchestration & Service Backend Integration"
+    tasks:
+      - id: "T1"
+        title: "Update GcpStage1Config and build_gcp_stage1_plan for GPU/Whisper"
+        objective: "Extend orchestration.py to support backend selection (whisper/parakeet), CUDA driver setup, and stage1-whisper uv sync."
+        owned_scope: ["src/chronicle/stage1/orchestration.py"]
+        forbidden_scope: ["src/chronicle/stage2/*", "src/chronicle/stage3/*"]
+        dependencies: []
+        parallelizable: false
+        expected_validation: ["Unit tests for plan generation"]
+
+      - id: "T2"
+        title: "Wire backend selection into execute_stage1 service"
+        objective: "Update src/chronicle/stage1/service.py to allow execute_stage1 to run either whisper or parakeet based on backend parameter."
+        owned_scope: ["src/chronicle/stage1/service.py"]
+        forbidden_scope: ["src/chronicle/stage2/*", "src/chronicle/stage3/*"]
+        dependencies: ["T1"]
+        parallelizable: false
+        expected_validation: ["Unit tests for execute_stage1 with whisper backend"]
+
+  - id: "B2"
+    goal: "CLI & Test Suite Verification"
+    tasks:
+      - id: "T3"
+        title: "Update CLI commands (chronicle transcribe, transcribe-plan, transcribe-command)"
+        objective: "Add --backend option to chronicle transcribe, transcribe-plan, and transcribe-command."
+        owned_scope: ["src/chronicle/cli/stage1.py"]
+        forbidden_scope: []
+        dependencies: ["T2"]
+        parallelizable: false
+        expected_validation: ["chronicle transcribe-plan --help and transcribe-command --help"]
+
+      - id: "T4"
+        title: "Update unit tests"
+        objective: "Add unit tests in tests/test_stage1.py for GPU plan generation, whisper service execution, and CLI flags."
+        owned_scope: ["tests/test_stage1.py"]
+        forbidden_scope: []
+        dependencies: ["T3"]
+        parallelizable: false
+        expected_validation: ["uv run pytest"]
+
+ordering_notes:
+  - "Orchestration config (T1) -> Service wiring (T2) -> CLI flags (T3) -> Unit tests (T4)."
+
+risks:
+  - "GCP regional GPU availability varies; plan will support both L4 (g2-standard-4) and T4 (n1-standard-4) GPU types."
+
+open_questions: []
+
+review:
+  status: draft
+  loop_count: 0
+  notes: []
+
+checkpoint:
+  required_before_execution: true
+  status: pending

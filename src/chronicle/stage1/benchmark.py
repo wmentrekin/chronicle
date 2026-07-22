@@ -358,3 +358,84 @@ def benchmark_parakeet_concurrency(
         ],
         "results": results,
     }
+
+
+def benchmark_faster_whisper(
+    manifest: SessionManifest,
+    sample_seconds: int,
+    sample_count: int,
+    model_name: str = "large-v3-turbo",
+    device: str = "cpu",
+    compute_type: str = "int8",
+    vad_filter: bool = True,
+) -> dict[str, Any]:
+    from .whisper import transcribe_with_faster_whisper
+
+    sample_windows = build_evenly_spaced_sample_windows(
+        manifest=manifest,
+        sample_seconds=sample_seconds,
+        sample_count=sample_count,
+    )
+
+    started_at = time.perf_counter()
+    total_segments = 0
+    empty_segments = 0
+    transcript_chars = 0
+    total_words = 0
+
+    for sample_window in sample_windows:
+        model_info, segments, word_timestamps = transcribe_with_faster_whisper(
+            audio_path=sample_window.audio_path,
+            language=manifest.language,
+            model_name=model_name,
+            device=device,
+            compute_type=compute_type,
+            vad_filter=vad_filter,
+        )
+        total_segments += len(segments)
+        total_words += len(word_timestamps)
+        for segment in segments:
+            text = segment.get("text", "")
+            transcript_chars += len(text)
+            if segment.get("decode_status") == "empty":
+                empty_segments += 1
+
+    elapsed_seconds = max(time.perf_counter() - started_at, 0.001)
+    total_sample_audio_seconds = sample_seconds * len(sample_windows)
+
+    result_entry = {
+        "backend": "faster-whisper",
+        "model_name": model_name,
+        "device": device,
+        "compute_type": compute_type,
+        "vad_filter": vad_filter,
+        "sample_count": len(sample_windows),
+        "sample_seconds": sample_seconds,
+        "sample_audio_seconds": total_sample_audio_seconds,
+        "elapsed_seconds": round(elapsed_seconds, 3),
+        "throughput_audio_minutes_per_wall_minute": round(
+            (total_sample_audio_seconds / 60.0) / (elapsed_seconds / 60.0),
+            3,
+        ),
+        "segment_count": total_segments,
+        "word_count": total_words,
+        "empty_segment_count": empty_segments,
+        "transcript_char_count": transcript_chars,
+    }
+
+    return {
+        "stage": "stage1_whisper_benchmark",
+        "session_id": manifest.session_id,
+        "sample_count": len(sample_windows),
+        "sample_seconds": sample_seconds,
+        "samples": [
+            {
+                "source_audio": sample.source_audio,
+                "start_seconds": round(sample.start_seconds, 3),
+                "duration_seconds": sample.duration_seconds,
+            }
+            for sample in sample_windows
+        ],
+        "results": [result_entry],
+    }
+

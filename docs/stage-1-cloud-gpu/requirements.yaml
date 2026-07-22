@@ -1,0 +1,54 @@
+# Contract: durable task-definition handoff created by $work
+
+artifact: requirements
+feature: "stage-1-cloud-gpu"
+mode: "bounded-feature"
+status: draft
+owner_skill: work
+
+summary:
+  problem: "Stage 1 transcription on local CPU takes 16x slower than real-time for large models (large-v3-turbo). Cloud VM execution needs GPU acceleration (NVIDIA L4/T4) and faster-whisper CUDA integration to achieve 15x-30x faster-than-real-time speed."
+  motivation: "Running faster-whisper on an ephemeral Cloud GPU (NVIDIA L4 or T4) enables transcribing a 1-hour interview in 2-3 minutes with near-zero cost using GCP credits or Spot instances."
+  requested_outcome: "Update Stage 1 cloud orchestration, service, and CLI flags to seamlessly support GPU-accelerated faster-whisper transcription on GCP GPU VMs with automatic setup, execution, output retrieval, and teardown."
+
+goals:
+  - "Update GcpStage1Config and build_gcp_stage1_plan in src/chronicle/stage1/orchestration.py to support backend selection (faster-whisper vs parakeet)."
+  - "Support GPU worker bootstrapping with CUDA driver/library installation and uv sync --group stage1-whisper."
+  - "Wire chronicle transcribe <session_id> --backend whisper --device cuda --compute-type float16 (or int8_float16) for cloud worker runs."
+  - "Preserve strict filesystem contracts and automatic instance teardown after results are retrieved."
+
+non_goals:
+  - "Do not alter Stage 2, 3, or 4 contracts."
+  - "Do not break existing local worker options."
+
+constraints:
+  technical:
+    - "Python 3.11 compatibility."
+    - "NVIDIA CUDA / CTranslate2 support on Linux worker VM."
+    - "Preserve Stage 1 raw_transcript.json and raw_transcript.md output contracts."
+  product:
+    - "Transient lifecycle: create VM -> upload -> run -> download -> teardown to avoid runaway costs."
+
+assumptions:
+  - "GCP GPU instances (NVIDIA L4 in g2-standard-4 or NVIDIA T4 in n1-standard-4) can be provisioned in accessible GCP zones."
+  - "Ubuntu 24.04 image on GCP includes or can install NVIDIA drivers automatically."
+
+repo_context:
+  relevant_paths:
+    - "src/chronicle/stage1/orchestration.py"
+    - "src/chronicle/stage1/service.py"
+    - "src/chronicle/stage1/whisper.py"
+    - "src/chronicle/cli/stage1.py"
+    - "scripts/stage1/gcp/"
+  systems_in_scope:
+    - "Stage 1 cloud orchestration plan builder"
+    - "Stage 1 transcribe CLI flags"
+    - "Cloud VM bootstrap script commands"
+
+acceptance_criteria:
+  - "chronicle transcribe-plan --backend whisper --gpu-enabled generates a valid GCP plan with GPU flags and stage1-whisper dependencies."
+  - "chronicle transcribe <session_id> supports --backend whisper for local worker or cloud execution."
+  - "All unit tests pass cleanly."
+
+ready_for_planning: true
+planning_blockers: []
