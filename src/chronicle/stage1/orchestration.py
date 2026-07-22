@@ -286,7 +286,20 @@ def run_gcp_stage1_plan(
     created_instance = False
     current_plan = plan
 
-    candidate_zones = [plan.config.zone, "us-central1-c", "us-east1-c", "us-west1-b", "us-west4-a", "us-east4-a"]
+    candidate_zones = [
+        plan.config.zone,
+        "us-east1-d",
+        "us-central1-b",
+        "us-central1-c",
+        "us-east4-b",
+        "us-east4-c",
+        "us-east1-c",
+        "us-west1-a",
+        "us-west1-b",
+        "us-west4-a",
+        "us-west4-b",
+        "us-east4-a",
+    ]
     seen: set[str] = set()
     zones_to_try = [z for z in candidate_zones if not (z in seen or seen.add(z))]
 
