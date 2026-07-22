@@ -120,9 +120,14 @@ def register(app: typer.Typer) -> None:
             if not project_id:
                 console.print(Panel("`--project-id` is required for Stage 1 orchestration.", title="Stage 1 Failed", style="red"))
                 raise typer.Exit(code=1)
+            default_instance_name = re.sub(
+                r"[^a-z0-9-]+",
+                "-",
+                f"chronicle-stage1-{manifest.session_id}".lower().replace("_", "-"),
+            ).strip("-")[:60]
             cloud_config = GcpStage1Config(
                 project_id=project_id,
-                instance_name=instance_name or f"chronicle-stage1-{manifest.session_id}",
+                instance_name=instance_name or default_instance_name,
                 session_id=manifest.session_id,
                 backend=backend,
                 zone=zone,
