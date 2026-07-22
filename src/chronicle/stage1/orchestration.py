@@ -32,6 +32,20 @@ def _default_repo_url() -> str:
         return "https://github.com/<owner>/chronicle.git"
     url = result.stdout.strip()
     return _normalize_repo_url(url) if url else "https://github.com/<owner>/chronicle.git"
+def _default_repo_ref() -> str:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        branch = result.stdout.strip()
+        if branch and branch != "HEAD":
+            return branch
+    except Exception:
+        pass
+    return "main"
 
 
 @dataclass(frozen=True)
@@ -56,7 +70,7 @@ class GcpStage1Config:
     local_output_dir: str = "./outputs"
     local_participants_file: str = "inputs/global/participants.yaml"
     repo_url: str = field(default_factory=_default_repo_url)
-    repo_ref: str = "remote"
+    repo_ref: str = field(default_factory=_default_repo_ref)
 
     def resolved_worker_repo_dir(self, worker_user: str) -> str:
         return self.worker_repo_dir.format(user=worker_user)
