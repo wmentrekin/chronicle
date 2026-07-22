@@ -215,6 +215,7 @@ def build_gcp_stage1_plan(
         "--command",
         (
             "set -euo pipefail && "
+            f"mkdir -p {worker_repo_dir}/inputs/sessions {worker_repo_dir}/inputs/global {worker_repo_dir}/outputs && "
             "curl -LsSf https://astral.sh/uv/install.sh | sh && "
             'export PATH="$HOME/.local/bin:$PATH" && '
             f"uv python install {config.python_version} && "
