@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+import time
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from shlex import join as shell_join
@@ -295,6 +296,9 @@ def run_gcp_stage1_plan(
                     if res.returncode == 0:
                         created_instance = True
                         vm_created_successfully = True
+                        if console is not None:
+                            console.print("[bold]Stage 1 cloud:[/bold] Waiting for SSH daemon initialization (10s)...")
+                        time.sleep(10)
                         break
                     else:
                         last_exc = subprocess.CalledProcessError(res.returncode, command)
@@ -310,7 +314,19 @@ def run_gcp_stage1_plan(
                 command = current_plan.commands[step]
                 if console is not None:
                     console.print(f"[bold]Stage 1 cloud:[/bold] `{step}`")
-                subprocess.run(command, check=True)
+                
+                # Retry SSH steps up to 3 times to handle initial key propagation delay
+                max_retries = 3 if step in ("clone_repo", "bootstrap", "run_stage1") else 1
+                for attempt in range(1, max_retries + 1):
+                    res = subprocess.run(command)
+                    if res.returncode == 0:
+                        break
+                    if attempt < max_retries and res.returncode == 255:
+                        if console is not None:
+                            console.print(f"[yellow]SSH attempt {attempt} failed (code 255). Retrying in 5s...[/yellow]")
+                        time.sleep(5)
+                    else:
+                        raise StageExecutionError(f"Stage 1 cloud step `{step}` failed with exit code {res.returncode}.")
     except subprocess.CalledProcessError as exc:
         raise StageExecutionError(f"Stage 1 cloud step `{step}` failed with exit code {exc.returncode}.") from exc
     finally:
