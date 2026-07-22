@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import subprocess
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from shlex import join as shell_join
 from typing import Any, Literal
@@ -269,19 +269,53 @@ def run_gcp_stage1_plan(
         "download_outputs",
     ]
     created_instance = False
+    current_plan = plan
+
+    candidate_zones = [plan.config.zone, "us-central1-c", "us-east1-c", "us-west1-b", "us-west4-a", "us-east4-a"]
+    seen: set[str] = set()
+    zones_to_try = [z for z in candidate_zones if not (z in seen or seen.add(z))]
+
     try:
         for step in step_order:
-            command = plan.commands[step]
-            if console is not None:
-                console.print(f"[bold]Stage 1 cloud:[/bold] `{step}`")
-            subprocess.run(command, check=True)
             if step == "vm_create":
-                created_instance = True
+                vm_created_successfully = False
+                last_exc: subprocess.CalledProcessError | None = None
+                for candidate_zone in zones_to_try:
+                    if candidate_zone != current_plan.config.zone:
+                        alt_config = replace(current_plan.config, zone=candidate_zone)
+                        current_plan = build_gcp_stage1_plan(
+                            config=alt_config,
+                            local_session_dir=Path(current_plan.local_session_dir),
+                            worker_user=current_plan.worker_user,
+                        )
+                    command = current_plan.commands["vm_create"]
+                    if console is not None:
+                        console.print(f"[bold]Stage 1 cloud:[/bold] `vm_create` (zone: {candidate_zone})")
+                    res = subprocess.run(command)
+                    if res.returncode == 0:
+                        created_instance = True
+                        vm_created_successfully = True
+                        break
+                    else:
+                        last_exc = subprocess.CalledProcessError(res.returncode, command)
+                        if console is not None:
+                            console.print(
+                                f"[yellow]Zone `{candidate_zone}` failed (likely stockout). Trying fallback zone...[/yellow]"
+                            )
+                if not vm_created_successfully:
+                    raise StageExecutionError(
+                        f"Stage 1 cloud step `vm_create` failed across all candidate zones ({', '.join(zones_to_try)})."
+                    ) from last_exc
+            else:
+                command = current_plan.commands[step]
+                if console is not None:
+                    console.print(f"[bold]Stage 1 cloud:[/bold] `{step}`")
+                subprocess.run(command, check=True)
     except subprocess.CalledProcessError as exc:
         raise StageExecutionError(f"Stage 1 cloud step `{step}` failed with exit code {exc.returncode}.") from exc
     finally:
         if created_instance and not keep_instance:
-            teardown = plan.commands["teardown"]
+            teardown = current_plan.commands["teardown"]
             if console is not None:
                 console.print("[bold]Stage 1 cloud:[/bold] `teardown`")
             try:
