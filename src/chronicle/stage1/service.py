@@ -19,6 +19,7 @@ from .artifacts import (
     format_duration_summary,
     legacy_stage1_output_paths,
     load_existing_audio_artifact,
+    parse_timestamp_seconds,
     session_stage1_output_paths,
     write_stage1_markdown,
 )
