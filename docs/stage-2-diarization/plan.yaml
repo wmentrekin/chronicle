@@ -1,0 +1,44 @@
+# Contract: durable execution plan maintained by $work
+
+artifact: plan
+feature: "stage-2-diarization"
+mode: "bounded-feature"
+owner_skill: work
+
+summary:
+  approach: "Benchmark SpeechBrain vs Pyannote locally and on Cloud GPU to identify the optimal diarization engine, wire --backend to chronicle diarize, add tests/test_stage2.py, and execute full Stage 2 diarization."
+
+task_batches:
+  - batch_id: B1
+    title: "Stage 2 Benchmarking (Local & Cloud GPU)"
+    tasks:
+      - id: T1
+        title: "Benchmark SpeechBrain and Pyannote locally on session audio sample"
+        target_files:
+          - "outputs/2026-02-24_interview_paternal-grandparents/runs/"
+      - id: T2
+        title: "Benchmark SpeechBrain and Pyannote on Cloud GPU VM worker"
+        target_files:
+          - "src/chronicle/stage2/orchestration.py"
+
+  - batch_id: B2
+    title: "Stage 2 Unit Tests & CLI Backend Support"
+    tasks:
+      - id: T3
+        title: "Add --backend option to chronicle diarize"
+        target_files:
+          - "src/chronicle/cli/stage2.py"
+          - "src/chronicle/stage2/service.py"
+      - id: T4
+        title: "Create comprehensive tests/test_stage2.py"
+        target_files:
+          - "tests/test_stage2.py"
+
+  - batch_id: B3
+    title: "Production Execution & Output Verification"
+    tasks:
+      - id: T5
+        title: "Run full Stage 2 diarization on selected backend for paternal grandparents session"
+        target_files:
+          - "outputs/2026-02-24_interview_paternal-grandparents/stage2/diarization.json"
+          - "outputs/2026-02-24_interview_paternal-grandparents/stage2/diarization.md"

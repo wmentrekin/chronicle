@@ -1,0 +1,29 @@
+# Contract: durable execution board maintained by $work
+
+artifact: status
+feature: "stage-2-diarization"
+mode: "bounded-feature"
+stage: "planning"
+owner_skill: work
+
+objective: "Validate, benchmark, and optimize Stage 2 acoustic speaker diarization pipeline (SpeechBrain local-first default & Pyannote benchmark)."
+
+summary:
+  current_focus: "Drafting requirements and plan for Stage 2 testing, benchmarking, and execution optimization."
+  last_completed: "Completed Stage 2 architecture and codebase discovery."
+  current_blocker: null
+
+artifacts:
+  requirements: "docs/stage-2-diarization/requirements.yaml"
+  plan: "docs/stage-2-diarization/plan.yaml"
+  implementation_report: null
+
+agents:
+  - id: "orchestrator"
+    role: "orchestrator"
+    model_guidance: "xhigh"
+    status: "active"
+    stage: "planning"
+    task: "creating requirements and plan for Stage 2"
+    last_update: "2026-07-22"
+    blocker: ""

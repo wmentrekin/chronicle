@@ -1,0 +1,27 @@
+# Contract: durable feature requirements maintained by $work
+
+artifact: requirements
+feature: "stage-2-diarization"
+mode: "bounded-feature"
+owner_skill: work
+
+overview:
+  goal: "Provide robust, local-first acoustic speaker diarization for interview sessions, complete with unit tests, benchmark support, and pipeline efficiency."
+  success_criteria:
+    - "Automated test suite (tests/test_stage2.py) covering Stage 2 service, artifacts, and CLI options."
+    - "Stage 2 runs cleanly on session audio (SpeechBrain default, offline & local-first)."
+    - "CLI supports --backend option (speechbrain | pyannote) on chronicle diarize."
+    - "Diarization output artifacts (diarization.json and diarization.md) adhere to filesystem contracts."
+
+requirements:
+  - id: R1
+    title: "Stage 2 Test Suite"
+    description: "Implement tests/test_stage2.py covering artifact structure, timestamp alignment, CLI option parsing, and mock SpeechBrain execution."
+
+  - id: R2
+    title: "Backend Selection on CLI"
+    description: "Add --backend option to chronicle diarize allowing users to specify speechbrain (default) or pyannote."
+
+  - id: R3
+    title: "Stage 2 Validation & Benchmarking"
+    description: "Ensure chronicle diarize and chronicle benchmark-stage2 execute reliably against session audio and produce deterministic output contracts."

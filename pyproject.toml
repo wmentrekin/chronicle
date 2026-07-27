@@ -35,11 +35,13 @@ stage2-pyannote = [
   "huggingface-hub<1",
   "numpy<2",
   "pyannote.audio>=3.3,<3.4",
+  "torchaudio<2.3.0",
 ]
 stage2-speechbrain = [
   "numpy<2",
   "scikit-learn>=1.5",
-  "speechbrain>=1.0,<1.2",
+  "speechbrain>=1.0.0,<1.1.0",
+  "torchaudio<2.3.0",
 ]
 stage1-whisper = [
   "faster-whisper>=1.0.0",
