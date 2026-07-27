@@ -9,8 +9,8 @@ owner_skill: work
 objective: "Validate, benchmark, and optimize Stage 2 acoustic speaker diarization pipeline (SpeechBrain local-first default & Pyannote benchmark)."
 
 summary:
-  current_focus: "Execution in progress: Running Stage 2 Cloud GPU acoustic diarization on NVIDIA L4 GPU for session 2026-02-24_interview_paternal-grandparents."
-  last_completed: "Completed local SpeechBrain benchmark (34s run time for 60s sample), added Stage 2 unit test suite (57 tests passing), and implemented Stage 2 GCP Cloud GPU orchestration."
+  current_focus: "Stage 2 execution & verification complete. 3-speaker acoustic audio diarization successfully generated for full session."
+  last_completed: "Completed 3-speaker Cloud GPU diarization run (667 turns generated), downloaded diarization.json (229 KB) & diarization.md (113 KB), cleaned up obsolete models/scripts/docs, and pushed commit 88e56e2 to origin/main."
   current_blocker: null
 
 artifacts:
@@ -23,7 +23,7 @@ agents:
     role: "orchestrator"
     model_guidance: "xhigh"
     status: "active"
-    stage: "execution"
-    task: "monitoring Cloud GPU Stage 2 diarization run"
+    stage: "verification"
+    task: "Stage 2 complete; ready for Stage 3"
     last_update: "2026-07-27"
     blocker: ""
