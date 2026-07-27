@@ -136,6 +136,9 @@ def register(app: typer.Typer) -> None:
                 machine_type=machine_type,
                 gpu_enabled=gpu_enabled,
                 gpu_type=gpu_type,
+                num_speakers=num_speakers,
+                min_speakers=min_speakers,
+                max_speakers=max_speakers,
                 local_output_dir=OUTPUTS_ROOT.as_posix(),
                 local_participants_file=participants_file.as_posix(),
             )

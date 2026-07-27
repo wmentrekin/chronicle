@@ -70,6 +70,9 @@ class GcpStage2Config:
     worker_repo_dir: str = "/home/{user}/chronicle"
     local_output_dir: str = "./outputs"
     local_participants_file: str = "inputs/global/participants.yaml"
+    num_speakers: int | None = None
+    min_speakers: int | None = None
+    max_speakers: int | None = None
     repo_url: str = field(default_factory=_default_repo_url)
     repo_ref: str = field(default_factory=_default_repo_ref)
 
@@ -232,6 +235,14 @@ def build_gcp_stage2_plan(
     upload_session = scp + ["--recurse", local_session_dir.as_posix(), f"{instance_ref}:{worker_session_root}/"]
     upload_participants = scp + [config.local_participants_file, f"{instance_ref}:{worker_global_root}/participants.yaml"]
     device_arg = "cuda" if config.gpu_enabled else "cpu"
+    speaker_flags = ""
+    if config.num_speakers is not None:
+        speaker_flags += f" --num-speakers {config.num_speakers}"
+    if config.min_speakers is not None:
+        speaker_flags += f" --min-speakers {config.min_speakers}"
+    if config.max_speakers is not None:
+        speaker_flags += f" --max-speakers {config.max_speakers}"
+
     run_stage2 = ssh + [
         "--command",
         (
@@ -239,7 +250,7 @@ def build_gcp_stage2_plan(
             f"cd {worker_repo_dir} && "
             'export PATH="$HOME/.local/bin:$PATH" && '
             f"uv run --python {config.python_version} chronicle diarize {config.session_id} --local-worker "
-            f"--device {device_arg}"
+            f"--device {device_arg}{speaker_flags} --force"
         ),
     ]
     download_outputs = scp + ["--recurse", f"{instance_ref}:{worker_output_root}/{config.session_id}", f"{config.local_output_dir}/"]
