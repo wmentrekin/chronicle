@@ -18,7 +18,7 @@ from ..stage1.audio import STAGE1_TRANSCRIPT_SAMPLE_RATE, decode_audio_to_mono_1
 from ..utils import slugify_stem
 
 
-DEFAULT_STAGE2_VENV_PYTHON = REPO_ROOT / ".venv-stage2" / "bin" / "python"
+DEFAULT_STAGE2_VENV_PYTHON = REPO_ROOT / ".venv" / "bin" / "python"
 DEFAULT_STAGE2_BACKEND = "pyannote"
 DEFAULT_STAGE2_PYANNOTE_MODEL = "pyannote/speaker-diarization-3.1"
 DEFAULT_STAGE2_SPEECHBRAIN_VAD_MODEL = "speechbrain/vad-crdnn-libriparty"

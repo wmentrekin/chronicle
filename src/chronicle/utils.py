@@ -92,3 +92,26 @@ def write_run_metadata(
     }
     write_json(run_path, payload)
     return run_path
+
+
+def estimate_gcp_cost(
+    wall_seconds: float,
+    *,
+    gpu_enabled: bool = False,
+    gpu_type: str = "nvidia-l4",
+    machine_type: str = "e2-standard-8",
+) -> float:
+    """Estimate GCP Compute Engine cost in USD for a given wall-clock execution duration."""
+    hourly_rate = 0.26
+    if gpu_enabled:
+        if "t4" in gpu_type.lower():
+            hourly_rate = 0.38
+        else:
+            hourly_rate = 0.70
+    elif "g2" in machine_type.lower():
+        hourly_rate = 0.70
+    elif "n1" in machine_type.lower():
+        hourly_rate = 0.38
+
+    total_hours = wall_seconds / 3600.0
+    return round(total_hours * hourly_rate, 4)

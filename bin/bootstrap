@@ -6,7 +6,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
 INSTALL_LINK=0
-SKIP_MODEL_DOWNLOAD=0
+SKIP_MODEL_DOWNLOAD=1
 
 while [[ $# -gt 0 ]]; do
   case "$1" in

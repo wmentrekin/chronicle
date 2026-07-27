@@ -23,7 +23,7 @@ from .benchmark import (
 
 
 DEFAULT_STAGE2_BACKEND = "speechbrain"
-DEFAULT_STAGE2_SPEECHBRAIN_PYTHON = REPO_ROOT / ".venv-stage2-speechbrain" / "bin" / "python"
+DEFAULT_STAGE2_SPEECHBRAIN_PYTHON = REPO_ROOT / ".venv" / "bin" / "python"
 
 
 def execute_stage2(
