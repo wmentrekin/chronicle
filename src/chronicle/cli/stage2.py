@@ -10,8 +10,12 @@ from rich.panel import Panel
 from datetime import datetime, timezone
 
 from ..exceptions import SessionValidationError, StageExecutionError
-from ..paths import DEFAULT_PARTICIPANTS_FILE, ensure_output_dirs, repo_relative, session_manifest_path
+from getpass import getuser
+import re
+
+from ..paths import DEFAULT_PARTICIPANTS_FILE, OUTPUTS_ROOT, ensure_output_dirs, input_session_dir, repo_relative, session_manifest_path
 from ..session import require_valid_session
+from ..stage2 import GcpStage2Config, build_gcp_stage2_plan, run_gcp_stage2_plan
 from ..stage2.service import (
     DEFAULT_STAGE2_SPEECHBRAIN_PYTHON,
     execute_stage2,
@@ -31,6 +35,47 @@ def register(app: typer.Typer) -> None:
             dir_okay=False,
             readable=True,
         ),
+        project_id: str | None = typer.Option(
+            None,
+            "--project-id",
+            help="Google Cloud project id for the Stage 2 worker.",
+        ),
+        instance_name: str | None = typer.Option(
+            None,
+            "--instance-name",
+            help="Compute Engine instance name. Defaults to a session-derived name.",
+        ),
+        zone: str = typer.Option(
+            "us-central1-a",
+            "--zone",
+            help="Google Cloud zone for the Stage 2 worker.",
+        ),
+        machine_type: str = typer.Option(
+            "e2-standard-8",
+            "--machine-type",
+            help="Compute Engine machine type for the Stage 2 worker.",
+        ),
+        gpu_enabled: bool = typer.Option(
+            False,
+            "--gpu-enabled/--cpu-only",
+            help="Use a GPU-backed worker instead of the default CPU worker.",
+        ),
+        gpu_type: str = typer.Option(
+            "nvidia-l4",
+            "--gpu-type",
+            help="GPU accelerator type when --gpu-enabled is set.",
+        ),
+        worker_user: str = typer.Option(
+            getuser(),
+            "--worker-user",
+            help="Linux username on the worker VM.",
+        ),
+        keep_instance: bool = typer.Option(
+            False,
+            "--keep-instance/--teardown",
+            help="Keep the worker instance running after Stage 2 completes.",
+        ),
+        local_worker: bool = typer.Option(False, "--local-worker", hidden=True),
         num_speakers: int | None = typer.Option(
             None,
             "--num-speakers",
@@ -75,6 +120,42 @@ def register(app: typer.Typer) -> None:
             force=force,
             output_paths=stage2_output_paths,
         )
+
+        if not local_worker and project_id:
+            default_instance_name = re.sub(
+                r"[^a-z0-9-]+",
+                "-",
+                f"chronicle-stage2-{manifest.session_id}".lower().replace("_", "-"),
+            ).strip("-")[:60]
+            cloud_config = GcpStage2Config(
+                project_id=project_id,
+                instance_name=instance_name or default_instance_name,
+                session_id=manifest.session_id,
+                backend="speechbrain",
+                zone=zone,
+                machine_type=machine_type,
+                gpu_enabled=gpu_enabled,
+                gpu_type=gpu_type,
+                local_output_dir=OUTPUTS_ROOT.as_posix(),
+                local_participants_file=participants_file.as_posix(),
+            )
+            plan = build_gcp_stage2_plan(
+                config=cloud_config,
+                local_session_dir=input_session_dir(manifest.session_id),
+                worker_user=worker_user,
+            )
+            try:
+                run_gcp_stage2_plan(plan, console=console, keep_instance=keep_instance)
+                console.print(
+                    Panel(
+                        f"Stage 2 completed for session `{manifest.session_id}`.",
+                        title="Stage 2 Complete",
+                    )
+                )
+            except StageExecutionError as exc:
+                console.print(Panel(str(exc), title="Stage 2 Failed", style="red"))
+                raise typer.Exit(code=1) from exc
+            return
 
         started_at = datetime.now(timezone.utc)
         run_notes: list[str] = []
