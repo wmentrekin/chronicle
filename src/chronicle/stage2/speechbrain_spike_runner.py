@@ -51,79 +51,24 @@ def build_non_overlapping_turns(
     if not segments:
         return []
 
-    candidate_boundaries = {
-        round(float(segment["start"]), 3)
-        for segment in segments
-    } | {
-        round(float(segment["end"]), 3)
-        for segment in segments
-    } | {
-        round(float(region["start"]), 3)
-        for region in speech_regions
-    } | {
-        round(float(region["end"]), 3)
-        for region in speech_regions
-    }
-    boundaries = sorted(candidate_boundaries)
+    sorted_segments = sorted(segments, key=lambda s: (float(s["start"]), float(s["end"])))
+    merged: list[dict[str, float | str]] = []
+    for seg in sorted_segments:
+        start = float(seg["start"])
+        end = float(seg["end"])
+        label = str(seg["speaker_label"])
 
-    intervals: list[dict[str, float | str]] = []
-    for left, right in zip(boundaries, boundaries[1:]):
-        if right - left < 0.05:
-            continue
-        midpoint = (left + right) / 2.0
-        if not any(float(region["start"]) <= midpoint <= float(region["end"]) for region in speech_regions):
+        if not merged:
+            merged.append({"speaker_label": label, "start": start, "end": end})
             continue
 
-        active = [
-            segment
-            for segment in segments
-            if float(segment["start"]) <= midpoint < float(segment["end"])
-        ]
-        if not active:
-            continue
-
-        label_scores: dict[str, tuple[int, float, float]] = {}
-        for segment in active:
-            label = str(segment["speaker_label"])
-            count, total_duration, center_distance = label_scores.get(label, (0, 0.0, 0.0))
-            duration = float(segment["end"]) - float(segment["start"])
-            segment_midpoint = (float(segment["start"]) + float(segment["end"])) / 2.0
-            label_scores[label] = (
-                count + 1,
-                total_duration + duration,
-                center_distance - abs(segment_midpoint - midpoint),
-            )
-
-        selected_label = max(
-            label_scores.items(),
-            key=lambda item: (item[1][0], item[1][1], item[1][2], item[0]),
-        )[0]
-        intervals.append(
-            {
-                "speaker_label": selected_label,
-                "start": round(left, 3),
-                "end": round(right, 3),
-            }
-        )
-
-    merged = merge_labeled_segments(intervals, join_gap_seconds=0.05)
-
-    smoothed: list[dict[str, float | str]] = []
-    for segment in merged:
-        duration = float(segment["end"]) - float(segment["start"])
-        if duration >= 0.3 or not smoothed:
-            smoothed.append(segment)
-            continue
-
-        previous = smoothed[-1]
-        previous_duration = float(previous["end"]) - float(previous["start"])
-        if previous_duration >= duration:
-            previous["end"] = max(float(previous["end"]), float(segment["end"]))
+        prev = merged[-1]
+        if prev["speaker_label"] == label and start <= float(prev["end"]) + 0.3:
+            prev["end"] = max(float(prev["end"]), end)
         else:
-            segment["start"] = previous["start"]
-            smoothed[-1] = segment
+            merged.append({"speaker_label": label, "start": start, "end": end})
 
-    return merge_labeled_segments(smoothed, join_gap_seconds=0.05)
+    return merged
 
 
 def main() -> None:
