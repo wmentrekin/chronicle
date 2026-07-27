@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 import tempfile
 import time
 from pathlib import Path
@@ -45,10 +46,16 @@ def execute_stage2(
         return [], [repo_relative(path) for path in existing_paths], []
 
     if not stage2_python.exists():
-        raise StageExecutionError(
-            f"Stage 2 SpeechBrain runtime not found at {stage2_python}. "
-            "Create it first or pass `--stage2-python`."
-        )
+        fallback_venv = REPO_ROOT / ".venv" / "bin" / "python"
+        if fallback_venv.exists():
+            stage2_python = fallback_venv
+        elif Path(sys.executable).exists():
+            stage2_python = Path(sys.executable)
+        else:
+            raise StageExecutionError(
+                f"Stage 2 SpeechBrain runtime not found at {stage2_python}. "
+                "Create it first or pass `--stage2-python`."
+            )
 
     audio_artifacts: list[dict[str, Any]] = []
     combined_turns: list[dict[str, Any]] = []
