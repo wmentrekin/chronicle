@@ -359,14 +359,14 @@ def run_gcp_stage2_plan(
                 if console is not None:
                     console.print(f"[bold]Stage 2 cloud:[/bold] `{step}`")
 
-                max_retries = 3 if step in ("clone_repo", "bootstrap", "run_stage2") else 1
+                max_retries = 3 if step in ("clone_repo", "bootstrap", "upload_session", "upload_participants", "run_stage2", "download_outputs") else 1
                 for attempt in range(1, max_retries + 1):
                     res = subprocess.run(command)
                     if res.returncode == 0:
                         break
-                    if attempt < max_retries and res.returncode == 255:
+                    if attempt < max_retries:
                         if console is not None:
-                            console.print(f"[yellow]SSH attempt {attempt} failed (code 255). Retrying in 5s...[/yellow]")
+                            console.print(f"[yellow]Stage 2 cloud step `{step}` attempt {attempt} failed (code {res.returncode}). Retrying in 5s...[/yellow]")
                         time.sleep(5)
                     else:
                         raise StageExecutionError(f"Stage 2 cloud step `{step}` failed with exit code {res.returncode}.")
