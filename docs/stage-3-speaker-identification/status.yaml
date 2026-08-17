@@ -13,9 +13,9 @@ branching:
   worktrees: []
 
 pr:
-  number: null
-  url: null
-  status: "ready_to_create"
+  number: 2
+  url: "https://github.com/wmentrekin/chronicle/pull/2"
+  status: "open"
 
 artifacts:
   requirements: "docs/stage-3-speaker-identification/requirements.yaml"
