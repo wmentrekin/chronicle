@@ -214,9 +214,32 @@ def _run_ollama_json_messages(
     usage["input_tokens"] = payload.get("prompt_eval_count", usage["input_tokens"])
     usage["output_tokens"] = payload.get("eval_count")
 
-    speaker_map = response_payload.get("speaker_map")
+    speaker_map = None
+    if isinstance(response_payload, list):
+        speaker_map = response_payload
+    elif isinstance(response_payload, dict):
+        speaker_map = (
+            response_payload.get("speaker_map")
+            or response_payload.get("speakers")
+            or response_payload.get("assignments")
+            or response_payload.get("mappings")
+        )
+        if speaker_map is None and all(isinstance(k, str) and k.startswith("SPEAKER_") for k in response_payload.keys()):
+            speaker_map = [
+                {
+                    "speaker_label": label,
+                    "assigned_person": person,
+                    "confidence": "Confirmed",
+                    "reasoning": "LLM content reasoning",
+                }
+                for label, person in response_payload.items()
+                if isinstance(person, str)
+            ]
+
     if not isinstance(speaker_map, list):
-        raise StageExecutionError("Ollama speaker mapping response must contain a `speaker_map` list.")
+        raise StageExecutionError(
+            "Ollama speaker mapping response must contain a `speaker_map` list or mapping dictionary."
+        )
     return speaker_map, usage
 
 
