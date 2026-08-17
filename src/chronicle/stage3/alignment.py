@@ -185,15 +185,25 @@ def align_transcript_to_diarization(
                 }
             )
         elif len(material) >= 2:
-            notes.append("[multiple candidate speakers] Stage 1 segment crosses diarized speaker turns.")
-            candidates = sorted(
-                {
-                    str(item["turn"].get("speaker_label"))
-                    for item in material
-                    if item["turn"].get("speaker_label")
-                }
-            )
-            ambiguous_count += 1
+            top = overlaps[0]
+            top_speaker = str(top["turn"].get("speaker_label"))
+            top_ratio = top["overlap_seconds"] / segment_duration if segment_duration > 0 else 0.0
+            if top_ratio >= 0.65:
+                speaker_label = top_speaker
+                candidates = [top_speaker]
+                confidence = "Likely"
+                turn_coverage = top["overlap_seconds"] / top["turn_duration"]
+                notes.append(f"[dominant speaker assignment] Dominant turn `{top_speaker}` covers {top_ratio*100:.0f}% of segment.")
+            else:
+                notes.append("[multiple candidate speakers] Stage 1 segment crosses diarized speaker turns.")
+                candidates = sorted(
+                    {
+                        str(item["turn"].get("speaker_label"))
+                        for item in material
+                        if item["turn"].get("speaker_label")
+                    }
+                )
+                ambiguous_count += 1
         else:
             top = overlaps[0]
             speaker_label = str(top["turn"].get("speaker_label"))

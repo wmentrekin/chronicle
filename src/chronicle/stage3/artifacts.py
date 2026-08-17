@@ -66,6 +66,28 @@ def render_stage3_markdown(artifact: dict[str, Any]) -> str:
             )
         lines.append("")
 
+    # Needs Review Summary Section
+    review_blocks = [
+        b for b in artifact.get("blocks", [])
+        if b.get("confidence") == "Needs review"
+        or b.get("alignment", {}).get("alignment_confidence") == "Needs review"
+    ]
+    if review_blocks:
+        lines.extend([
+            f"## ⚠️ Needs Review Summary ({len(review_blocks)} segments)",
+            "",
+            "The following segments require manual verification due to overlapping speaker turns or low alignment confidence:",
+            "",
+        ])
+        for b in review_blocks[:50]:  # Highlight top 50 review blocks
+            label = b.get("speaker_label") or " / ".join(b.get("speaker_label_candidates") or [])
+            time_str = f"[{b.get('start_time', '')} - {b.get('end_time', '')}]"
+            snippet = (b.get("text") or "")[:80]
+            lines.append(f"- **Block {b.get('block_id')}** `{time_str}` `{label}`: \"{snippet}...\"")
+        if len(review_blocks) > 50:
+            lines.append(f"- *...and {len(review_blocks) - 50} more segments needing review.*")
+        lines.append("")
+
     lines.extend(["## Transcript", ""])
     current_audio: str | None = None
     for block in artifact.get("blocks", []):
