@@ -293,39 +293,66 @@ def run_gcp_stage1_plan(
     created_instance = False
     current_plan = plan
 
-    candidate_zones = [
-        plan.config.zone,
-        "us-east1-d",
-        "us-central1-b",
-        "us-central1-c",
-        "us-east4-b",
-        "us-east4-c",
-        "us-east1-c",
-        "us-west1-a",
-        "us-west1-b",
-        "us-west4-a",
-        "us-west4-b",
-        "us-east4-a",
-    ]
-    seen: set[str] = set()
-    zones_to_try = [z for z in candidate_zones if not (z in seen or seen.add(z))]
+    candidate_configs: list[tuple[str, str]] = [
+        (plan.config.zone, plan.config.gpu_type),
+        ("us-central1-a", "nvidia-l4"),
+        ("us-central1-b", "nvidia-l4"),
+        ("us-central1-c", "nvidia-l4"),
+        ("us-east1-c", "nvidia-l4"),
+        ("us-east1-d", "nvidia-l4"),
+        ("us-east4-a", "nvidia-l4"),
+        ("us-east4-b", "nvidia-l4"),
+        ("us-east4-c", "nvidia-l4"),
+        ("us-west1-a", "nvidia-l4"),
+        ("us-west1-b", "nvidia-l4"),
+        ("us-west4-a", "nvidia-l4"),
+        ("us-west4-b", "nvidia-l4"),
+        ("us-south1-a", "nvidia-l4"),
+        ("us-south1-b", "nvidia-l4"),
+        ("us-central1-a", "nvidia-tesla-t4"),
+        ("us-central1-b", "nvidia-tesla-t4"),
+        ("us-central1-c", "nvidia-tesla-t4"),
+        ("us-central1-f", "nvidia-tesla-t4"),
+        ("us-east1-b", "nvidia-tesla-t4"),
+        ("us-east1-c", "nvidia-tesla-t4"),
+        ("us-east1-d", "nvidia-tesla-t4"),
+        ("us-east4-a", "nvidia-tesla-t4"),
+        ("us-east4-b", "nvidia-tesla-t4"),
+        ("us-west1-a", "nvidia-tesla-t4"),
+        ("us-west1-b", "nvidia-tesla-t4"),
+        ("us-west1-c", "nvidia-tesla-t4"),
+        ("us-west2-a", "nvidia-tesla-t4"),
+        ("us-west2-b", "nvidia-tesla-t4"),
+        ("us-west3-a", "nvidia-tesla-t4"),
+        ("us-west4-a", "nvidia-tesla-t4"),
+        ("us-south1-a", "nvidia-tesla-t4"),
+        ("us-south1-b", "nvidia-tesla-t4"),
+    ] if plan.config.gpu_enabled else [(z, plan.config.gpu_type) for z in ["us-central1-a", "us-east1-d", "us-central1-b", "us-central1-c"]]
+
+    seen_configs: set[tuple[str, str]] = set()
+    configs_to_try = [c for c in candidate_configs if not (c in seen_configs or seen_configs.add(c))]
 
     try:
         for step in step_order:
             if step == "vm_create":
                 vm_created_successfully = False
                 last_exc: subprocess.CalledProcessError | None = None
-                for candidate_zone in zones_to_try:
-                    if candidate_zone != current_plan.config.zone:
-                        alt_config = replace(current_plan.config, zone=candidate_zone)
-                        current_plan = build_gcp_stage1_plan(
-                            config=alt_config,
-                            local_session_dir=Path(current_plan.local_session_dir),
-                            worker_user=current_plan.worker_user,
-                        )
+                for candidate_zone, candidate_gpu in configs_to_try:
+                    candidate_machine = "g2-standard-4" if candidate_gpu == "nvidia-l4" else "n1-standard-4"
+                    alt_config = replace(
+                        current_plan.config,
+                        zone=candidate_zone,
+                        gpu_type=candidate_gpu,
+                        machine_type=candidate_machine if current_plan.config.gpu_enabled else current_plan.config.machine_type,
+                    )
+                    current_plan = build_gcp_stage1_plan(
+                        config=alt_config,
+                        local_session_dir=Path(current_plan.local_session_dir),
+                        worker_user=current_plan.worker_user,
+                    )
                     command = current_plan.commands["vm_create"]
                     if console is not None:
-                        console.print(f"[bold]Stage 1 cloud:[/bold] `vm_create` (zone: {candidate_zone})")
+                        console.print(f"[bold]Stage 1 cloud:[/bold] `vm_create` (zone: {candidate_zone}, gpu: {candidate_gpu})")
                     res = subprocess.run(command)
                     if res.returncode == 0:
                         created_instance = True
@@ -338,11 +365,11 @@ def run_gcp_stage1_plan(
                         last_exc = subprocess.CalledProcessError(res.returncode, command)
                         if console is not None:
                             console.print(
-                                f"[yellow]Zone `{candidate_zone}` failed (likely stockout). Trying fallback zone...[/yellow]"
+                                f"[yellow]Config `{candidate_zone}` ({candidate_gpu}) failed (likely stockout). Trying fallback...[/yellow]"
                             )
                 if not vm_created_successfully:
                     raise StageExecutionError(
-                        f"Stage 1 cloud step `vm_create` failed across all candidate zones ({', '.join(zones_to_try)})."
+                        f"Stage 1 cloud step `vm_create` failed across all candidate configs."
                     ) from last_exc
             else:
                 command = current_plan.commands[step]
