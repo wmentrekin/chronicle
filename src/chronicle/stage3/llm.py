@@ -65,7 +65,12 @@ def _env_int(name: str, default: int) -> int:
 
 def require_ollama_config(model: str) -> None:
     available_models = list_ollama_models()
-    if model in available_models:
+    normalized_model = model if ":" in model else f"{model}:latest"
+    if (
+        model in available_models
+        or normalized_model in available_models
+        or any(m.startswith(f"{model}:") for m in available_models)
+    ):
         return
     raise StageExecutionError(
         "Stage 3 `llm` mode requires a local Ollama model before final identity artifacts are written.\n\n"
