@@ -190,7 +190,7 @@ def main() -> None:
     clustering = AgglomerativeClustering(
         n_clusters=min(cluster_count, len(subsegments)),
         metric="cosine",
-        linkage="average",
+        linkage="complete",
     )
     labels = clustering.fit_predict(embeddings)
 
