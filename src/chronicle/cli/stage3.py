@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from getpass import getuser
 from pathlib import Path
 from typing import Optional
 
@@ -53,6 +54,47 @@ def register(app: typer.Typer) -> None:
             readable=True,
             help="Manual speaker-map YAML for manual mode or llm overrides.",
         ),
+        project_id: str | None = typer.Option(
+            None,
+            "--project-id",
+            help="Google Cloud project id for the Stage 3 worker.",
+        ),
+        instance_name: str | None = typer.Option(
+            None,
+            "--instance-name",
+            help="Compute Engine instance name. Defaults to a session-derived name.",
+        ),
+        zone: str = typer.Option(
+            "us-central1-a",
+            "--zone",
+            help="Google Cloud zone for the Stage 3 worker.",
+        ),
+        machine_type: str = typer.Option(
+            "e2-standard-8",
+            "--machine-type",
+            help="Compute Engine machine type for the Stage 3 worker.",
+        ),
+        gpu_enabled: bool = typer.Option(
+            False,
+            "--gpu-enabled/--cpu-only",
+            help="Use a GPU-backed worker instead of the default CPU worker.",
+        ),
+        gpu_type: str = typer.Option(
+            "nvidia-l4",
+            "--gpu-type",
+            help="GPU accelerator type when --gpu-enabled is set.",
+        ),
+        worker_user: str = typer.Option(
+            getuser(),
+            "--worker-user",
+            help="Linux username on the worker VM.",
+        ),
+        keep_instance: bool = typer.Option(
+            False,
+            "--keep-instance/--teardown",
+            help="Keep the worker instance running after Stage 3 completes.",
+        ),
+        local_worker: bool = typer.Option(False, "--local-worker", hidden=True),
     ) -> None:
         """Run Stage 3 speaker identification over Stage 1 and Stage 2 outputs."""
         try:
@@ -75,6 +117,38 @@ def register(app: typer.Typer) -> None:
                 directories["stage3"] / output_names[1],
             ],
         )
+
+        if project_id and not local_worker:
+            from ..stage3.orchestration import (
+                GcpStage3Config,
+                default_stage3_instance_name,
+                build_gcp_stage3_plan,
+                run_gcp_stage3_plan,
+            )
+            config = GcpStage3Config(
+                project_id=project_id,
+                instance_name=instance_name or default_stage3_instance_name(manifest.session_id),
+                session_id=manifest.session_id,
+                mode=mode,
+                backend=backend or "ollama_decomposed",
+                model=model or "llama3.2",
+                zone=zone,
+                machine_type=machine_type,
+                gpu_enabled=gpu_enabled,
+                gpu_type=gpu_type,
+                speaker_map_file=repo_relative(speaker_map) if speaker_map else None,
+            )
+            plan = build_gcp_stage3_plan(
+                config=config,
+                local_session_dir=session_manifest_path(manifest.session_id).parent,
+                worker_user=worker_user,
+            )
+            try:
+                run_gcp_stage3_plan(plan, console=console, keep_instance=keep_instance)
+                return
+            except StageExecutionError as exc:
+                console.print(Panel(str(exc), title="Stage 3 Failed", style="bold red"))
+                raise typer.Exit(code=1) from exc
 
         started_at = datetime.now(timezone.utc)
         run_notes: list[str] = []
