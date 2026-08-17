@@ -13,8 +13,8 @@ branching:
   worktrees: []
 
 pr:
-  number: 2
-  url: "https://github.com/wmentrekin/chronicle/pull/2"
+  number: 3
+  url: "https://github.com/wmentrekin/chronicle/pull/3"
   status: "open"
 
 artifacts:
