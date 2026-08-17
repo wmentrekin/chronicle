@@ -158,7 +158,10 @@ def main() -> None:
         return
 
     embeddings = np.stack([segment["embedding"] for segment in subsegments])
-    deltas = np.diff(embeddings, axis=0)
+    from sklearn.preprocessing import normalize
+
+    normalized_embeddings = normalize(embeddings, norm="l2")
+    deltas = np.diff(normalized_embeddings, axis=0)
     embedding_norm_mean = float(np.linalg.norm(deltas, axis=1).mean()) if len(deltas) else 0.0
 
     if args.num_speakers is not None:
@@ -175,13 +178,12 @@ def main() -> None:
                 break
             clustering = AgglomerativeClustering(
                 n_clusters=candidate,
-                metric="cosine",
-                linkage="average",
+                linkage="ward",
             )
-            labels = clustering.fit_predict(embeddings)
+            labels = clustering.fit_predict(normalized_embeddings)
             if len(set(labels)) <= 1:
                 continue
-            score = silhouette_score(embeddings, labels, metric="cosine")
+            score = silhouette_score(normalized_embeddings, labels, metric="euclidean")
             if best_score is None or score > best_score:
                 best_score = score
                 best_cluster_count = candidate
@@ -189,10 +191,9 @@ def main() -> None:
 
     clustering = AgglomerativeClustering(
         n_clusters=min(cluster_count, len(subsegments)),
-        metric="cosine",
-        linkage="complete",
+        linkage="ward",
     )
-    labels = clustering.fit_predict(embeddings)
+    labels = clustering.fit_predict(normalized_embeddings)
 
     labeled_segments = []
     for index, (segment, label) in enumerate(zip(subsegments, labels), start=1):
