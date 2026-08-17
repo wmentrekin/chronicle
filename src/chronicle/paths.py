@@ -53,7 +53,6 @@ def ensure_output_dirs(session_id: str) -> dict[str, Path]:
         "runs": root / "runs",
         "stage1": root / "stage1",
         "stage2": root / "stage2",
-        "stage2_spike": root / "stage2-spike",
         "stage3": root / "stage3",
         "stage4": root / "stage4",
     }
