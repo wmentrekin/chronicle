@@ -332,6 +332,7 @@ Rules:
 
 * never expose raw data externally
 * avoid logging sensitive content
+* NEVER put actual family names, personal names, or sensitive identifiers in git commit messages, branch names, PR titles, or PR descriptions. Always use session IDs (e.g. `2026-02-24_interview_paternal-grandparents`) or generic participant roles (`interviewer`, `paternal_grandmother`, `paternal_grandfather`).
 * do not commit anything under:
 
   * `inputs/`
