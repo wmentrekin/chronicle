@@ -1,0 +1,33 @@
+version: 1
+mode: "bounded-feature"
+internal_stage: "planning"
+objective: "Execute Stage 3 speaker identification and transcript alignment for session 2026-02-24_interview_paternal-grandparents."
+
+summary:
+  current_focus: "Creating Stage 3 requirements and plan artifacts for speaker identification and transcript alignment."
+  last_completed: "Killed all background subagents, confirmed clean environment, created feature branch `work/stage3-speaker-identification`, and updated AGENTS.md rule."
+  current_blocker: null
+
+branching:
+  branch_name: "work/stage3-speaker-identification"
+  worktrees: []
+
+pr:
+  number: null
+  url: null
+  status: "not_created"
+
+artifacts:
+  requirements: "docs/stage-3-speaker-identification/requirements.yaml"
+  plan: "docs/stage-3-speaker-identification/plan.yaml"
+  implementation_report: null
+
+agents:
+  - id: "orchestrator"
+    role: "orchestrator"
+    model_guidance: "xhigh"
+    status: "active"
+    stage: "planning"
+    task: "creating Stage 3 requirements and plan"
+    last_update: "2026-08-17"
+    blocker: ""

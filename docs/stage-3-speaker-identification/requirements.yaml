@@ -1,0 +1,21 @@
+version: 1
+feature: "Stage 3 Speaker Identification & Alignment"
+session_id: "2026-02-24_interview_paternal-grandparents"
+
+objective: |
+  Align Stage 1 transcript segments with Stage 2 acoustic speaker turns and map anonymous labels
+  (SPEAKER_00, SPEAKER_01, SPEAKER_02) to canonical participant names (Grandmother, Grandfather, Interviewer).
+
+requirements:
+  - id: "REQ-S3-01"
+    description: "Align Stage 1 transcript text with Stage 2 acoustic turns based on temporal overlap without altering transcript wording."
+    priority: "must"
+  - id: "REQ-S3-02"
+    description: "Map 3 anonymous speaker labels (SPEAKER_00, SPEAKER_01, SPEAKER_02) to 3 canonical participants from participants.yaml using local LLM evidence reasoning or manual map."
+    priority: "must"
+  - id: "REQ-S3-03"
+    description: "Produce deterministic identified_conversation.json and identified_conversation.md output artifacts in outputs/<session_id>/stage3/."
+    priority: "must"
+  - id: "REQ-S3-04"
+    description: "Ensure all 57 unit tests in test_stage3.py continue to pass 100%."
+    priority: "must"
