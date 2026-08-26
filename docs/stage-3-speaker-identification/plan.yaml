@@ -1,0 +1,35 @@
+version: 1
+feature: "Stage 3 Speaker Identification & Alignment"
+session_id: "2026-02-24_interview_paternal-grandparents"
+
+objective: "Execute Stage 3 transcript alignment and 3-speaker identity resolution for session 2026-02-24_interview_paternal-grandparents."
+
+branching:
+  branch_name: "work/stage3-speaker-identification"
+  worktrees: []
+
+tasks:
+  - id: "TASK-S3-01"
+    name: "Validate Stage 3 Inputs & Alignment Service"
+    assigned_domain: "generalist-developer"
+    owned_scope:
+      - "src/chronicle/stage3/inputs.py"
+      - "src/chronicle/stage3/alignment.py"
+    description: "Verify Stage 1 and Stage 2 outputs exist and run align_transcript_to_diarization."
+
+  - id: "TASK-S3-02"
+    name: "Execute Stage 3 Speaker Identification"
+    assigned_domain: "data-scientist"
+    owned_scope:
+      - "src/chronicle/stage3/service.py"
+      - "src/chronicle/stage3/identity.py"
+      - "src/chronicle/stage3/llm.py"
+    description: "Run chronicle identify 2026-02-24_interview_paternal-grandparents to resolve SPEAKER_00, SPEAKER_01, SPEAKER_02 to Grandmother, Grandfather, Interviewer."
+
+  - id: "TASK-S3-03"
+    name: "Verify Stage 3 Output Artifacts & Unit Suite"
+    assigned_domain: "generalist-developer"
+    owned_scope:
+      - "outputs/2026-02-24_interview_paternal-grandparents/stage3/"
+      - "tests/test_stage3.py"
+    description: "Validate identified_conversation.json & .md, ensure test suite passes 100%, and open pull request."

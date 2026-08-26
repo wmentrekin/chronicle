@@ -1,4 +1,4 @@
-"""Stage 1 cloud orchestration planning."""
+"""Stage 3 cloud orchestration planning."""
 
 from __future__ import annotations
 
@@ -32,6 +32,8 @@ def _default_repo_url() -> str:
         return "https://github.com/<owner>/chronicle.git"
     url = result.stdout.strip()
     return _normalize_repo_url(url) if url else "https://github.com/<owner>/chronicle.git"
+
+
 def _default_repo_ref() -> str:
     try:
         result = subprocess.run(
@@ -49,11 +51,13 @@ def _default_repo_ref() -> str:
 
 
 @dataclass(frozen=True)
-class GcpStage1Config:
+class GcpStage3Config:
     project_id: str
     instance_name: str
     session_id: str
-    backend: str = "whisper"
+    mode: str = "llm"
+    backend: str = "ollama_decomposed"
+    model: str = "llama3.2"
     zone: str = "us-central1-a"
     machine_type: str = "e2-standard-8"
     gpu_enabled: bool = False
@@ -62,13 +66,13 @@ class GcpStage1Config:
     boot_disk_size: str = "50GB"
     image_family: str = "ubuntu-2404-lts-amd64"
     image_project: str = "ubuntu-os-cloud"
-    tags: str = "chronicle-stage1"
-    labels: str = "chronicle=1,stage=stage1,mode=cloud"
-    model_name: str = "large-v3-turbo"
+    tags: str = "chronicle-stage3"
+    labels: str = "chronicle=1,stage=stage3,mode=cloud"
     python_version: str = "3.11"
     worker_repo_dir: str = "/home/{user}/chronicle"
     local_output_dir: str = "./outputs"
     local_participants_file: str = "inputs/global/participants.yaml"
+    speaker_map_file: str | None = None
     repo_url: str = field(default_factory=_default_repo_url)
     repo_ref: str = field(default_factory=_default_repo_ref)
 
@@ -77,8 +81,8 @@ class GcpStage1Config:
 
 
 @dataclass(frozen=True)
-class GcpStage1Plan:
-    config: GcpStage1Config
+class GcpStage3Plan:
+    config: GcpStage3Config
     worker_user: str
     local_session_dir: str
     commands: dict[str, list[str]]
@@ -95,59 +99,95 @@ class GcpStage1Plan:
         try:
             command = self.commands[step]
         except KeyError as exc:
-            raise KeyError(f"Unknown Stage 1 cloud step: {step}") from exc
+            raise KeyError(f"Unknown Stage 3 cloud step: {step}") from exc
         return shell_join(command)
 
 
-Stage1CloudStep = Literal[
+Stage3CloudStep = Literal[
     "preflight",
     "vm_create",
     "clone_repo",
     "bootstrap",
     "upload_session",
+    "upload_prior_stages",
     "upload_participants",
-    "run_stage1",
+    "run_stage3",
     "download_outputs",
     "teardown",
 ]
 
 
-def _worker_repo_dir(config: GcpStage1Config, worker_user: str) -> str:
-    return config.resolved_worker_repo_dir(worker_user)
+def resolve_gcp_worker_user() -> str:
+    try:
+        res = subprocess.run(
+            ["gcloud", "config", "get-value", "account"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        account = res.stdout.strip()
+        if account and "@" in account:
+            user = account.split("@")[0]
+            sanitized = "".join(c if c.isalnum() or c in "_-" else "_" for c in user)
+            if sanitized and sanitized[0].isalpha():
+                return sanitized
+    except Exception:
+        pass
+
+    try:
+        import getpass
+        local_user = getpass.getuser()
+        sanitized = "".join(c if c.isalnum() or c in "_-" else "_" for c in local_user)
+        if sanitized and sanitized[0].isalpha():
+            return sanitized
+    except Exception:
+        pass
+
+    return "chronicle"
 
 
-def build_gcp_stage1_plan(
+def sanitize_gcp_instance_name(raw_name: str) -> str:
+    cleaned = "".join(c.lower() if (c.isalnum() or c == "-") else "-" for c in raw_name)
+    cleaned = cleaned.strip("-")
+    while "--" in cleaned:
+        cleaned = cleaned.replace("--", "-")
+    if not cleaned or not cleaned[0].isalpha():
+        cleaned = f"vm-{cleaned}" if cleaned else "vm-stage3"
+    return cleaned[:63].rstrip("-")
+
+
+def default_stage3_instance_name(session_id: str) -> str:
+    return sanitize_gcp_instance_name(f"chronicle-stage3-{session_id}")
+
+
+def build_gcp_stage3_plan(
     *,
-    config: GcpStage1Config,
+    config: GcpStage3Config,
     local_session_dir: Path,
-    worker_user: str,
-) -> GcpStage1Plan:
-    worker_repo_dir = _worker_repo_dir(config, worker_user)
-    worker_session_root = f"{worker_repo_dir}/inputs/sessions"
-    worker_global_root = f"{worker_repo_dir}/inputs/global"
-    worker_output_root = f"{worker_repo_dir}/outputs"
-    instance_ref = config.instance_name
+    worker_user: str | None = None,
+) -> GcpStage3Plan:
+    worker_user = worker_user or resolve_gcp_worker_user()
+    remote_repo = config.resolved_worker_repo_dir(worker_user)
+    target = f"{worker_user}@{config.instance_name}"
 
     preflight = [
         "gcloud",
-        "services",
-        "list",
-        "--enabled",
+        "compute",
+        "instances",
+        "describe",
+        config.instance_name,
         "--project",
         config.project_id,
+        "--zone",
+        config.zone,
     ]
-    resolved_machine_type = config.machine_type
-    resolved_image_family = config.image_family
-    resolved_image_project = config.image_project
+
+    machine = config.machine_type
     if config.gpu_enabled:
-        if config.machine_type == "e2-standard-8":
-            if "l4" in config.gpu_type.lower():
-                resolved_machine_type = "g2-standard-4"
-            else:
-                resolved_machine_type = "n1-standard-4"
-        if config.image_family == "ubuntu-2404-lts-amd64" and config.image_project == "ubuntu-os-cloud":
-            resolved_image_family = "common-cu129-ubuntu-2404-nvidia-580"
-            resolved_image_project = "deeplearning-platform-release"
+        if config.gpu_type == "nvidia-l4":
+            machine = "g2-standard-4"
+        elif config.gpu_type == "nvidia-tesla-t4":
+            machine = "n1-standard-4"
 
     vm_create = [
         "gcloud",
@@ -160,90 +200,142 @@ def build_gcp_stage1_plan(
         "--zone",
         config.zone,
         "--machine-type",
-        resolved_machine_type,
+        machine,
+        "--image-family",
+        config.image_family,
+        "--image-project",
+        config.image_project,
         "--boot-disk-size",
         config.boot_disk_size,
-        "--image-family",
-        resolved_image_family,
-        "--image-project",
-        resolved_image_project,
-        "--restart-on-failure",
         "--tags",
         config.tags,
         "--labels",
         config.labels,
     ]
-    if config.gpu_enabled:
-        vm_create.extend(
-            [
-                "--accelerator",
-                f"type={config.gpu_type},count={config.gpu_count}",
-                "--maintenance-policy",
-                "TERMINATE",
-            ]
-        )
 
-    ssh = [
+    if config.gpu_enabled:
+        vm_create.extend([
+            "--accelerator",
+            f"type={config.gpu_type},count={config.gpu_count}",
+            "--maintenance-policy",
+            "TERMINATE",
+        ])
+
+    clone_repo = [
         "gcloud",
         "compute",
         "ssh",
-        instance_ref,
+        target,
         "--project",
         config.project_id,
         "--zone",
         config.zone,
+        "--command",
+        f"git clone {config.repo_url} {remote_repo} && cd {remote_repo} && git checkout {config.repo_ref}",
     ]
-    scp = [
+
+    bootstrap_script = (
+        f"cd {remote_repo} && "
+        "sudo apt-get update && sudo apt-get install -y curl ffmpeg git build-essential && "
+        "curl -fsSL https://ollama.com/install.sh | sh && "
+        "sudo systemctl start ollama || (ollama serve >/dev/null 2>&1 &) && "
+        "sleep 5 && "
+        f"ollama pull {config.model} && "
+        "curl -LsSf https://astral.sh/uv/install.sh | sh && "
+        "export PATH=\"$HOME/.local/bin:$PATH\" && "
+        "uv venv --python 3.11 && "
+        "uv sync --all-groups && "
+        "mkdir -p inputs/sessions inputs/global outputs"
+    )
+
+    bootstrap = [
+        "gcloud",
+        "compute",
+        "ssh",
+        target,
+        "--project",
+        config.project_id,
+        "--zone",
+        config.zone,
+        "--command",
+        bootstrap_script,
+    ]
+
+    upload_session = [
         "gcloud",
         "compute",
         "scp",
+        "--recurse",
+        local_session_dir.as_posix(),
+        f"{target}:{remote_repo}/inputs/sessions/",
         "--project",
         config.project_id,
         "--zone",
         config.zone,
     ]
 
-    clone_repo = ssh + [
-        "--command",
-        (
-            "set -euo pipefail && "
-            f"if [ ! -d '{worker_repo_dir}/.git' ]; then "
-            f"git clone --branch {config.repo_ref} {config.repo_url} {worker_repo_dir}; "
-            "else "
-            f"cd {worker_repo_dir} && git fetch origin {config.repo_ref} && git checkout {config.repo_ref} && git pull --ff-only origin {config.repo_ref}; "
-            "fi"
-        ),
+    upload_prior_stages = [
+        "gcloud",
+        "compute",
+        "scp",
+        "--recurse",
+        f"{config.local_output_dir}/{config.session_id}",
+        f"{target}:{remote_repo}/outputs/",
+        "--project",
+        config.project_id,
+        "--zone",
+        config.zone,
     ]
 
-    group_flag = "--group stage1-whisper" if config.backend == "whisper" else "--group stage1-parakeet"
-    model_fetch_cmd = f" && uv run --python {config.python_version} chronicle models fetch parakeet" if config.backend == "parakeet" else ""
-    bootstrap = ssh + [
-        "--command",
-        (
-            "set -euo pipefail && "
-            f"mkdir -p {worker_repo_dir}/inputs/sessions {worker_repo_dir}/inputs/global {worker_repo_dir}/outputs && "
-            "curl -LsSf https://astral.sh/uv/install.sh | sh && "
-            'export PATH="$HOME/.local/bin:$PATH" && '
-            f"uv python install {config.python_version} && "
-            f"cd {worker_repo_dir} && "
-            f"uv sync --python {config.python_version} --group dev {group_flag}"
-            f"{model_fetch_cmd}"
-        ),
+    upload_participants = [
+        "gcloud",
+        "compute",
+        "scp",
+        config.local_participants_file,
+        f"{target}:{remote_repo}/inputs/global/participants.yaml",
+        "--project",
+        config.project_id,
+        "--zone",
+        config.zone,
     ]
-    upload_session = scp + ["--recurse", local_session_dir.as_posix(), f"{instance_ref}:{worker_session_root}/"]
-    upload_participants = scp + [config.local_participants_file, f"{instance_ref}:{worker_global_root}/participants.yaml"]
-    device_arg = "cuda" if config.gpu_enabled else "cpu"
-    run_stage1 = ssh + [
+
+    run_cmd = (
+        f"cd {remote_repo} && "
+        "sudo systemctl start ollama || (ollama serve >/dev/null 2>&1 &) && "
+        "sleep 5 && "
+        "export PATH=\"$HOME/.local/bin:$PATH\" && "
+        f"uv run chronicle identify {config.session_id} --mode {config.mode} --backend {config.backend} --model {config.model} --force"
+    )
+
+    run_stage3 = [
+        "gcloud",
+        "compute",
+        "ssh",
+        target,
+        "--project",
+        config.project_id,
+        "--zone",
+        config.zone,
         "--command",
-        (
-            "set -euo pipefail && "
-            f"cd {worker_repo_dir} && "
-            'export PATH="$HOME/.local/bin:$PATH" && '
-            f"uv run --python {config.python_version} chronicle transcribe {config.session_id} --local-worker "
-            f"--backend {config.backend} --model {config.model_name} --device {device_arg}"
-        ),
+        run_cmd,
     ]
-    download_outputs = scp + ["--recurse", f"{instance_ref}:{worker_output_root}/{config.session_id}", f"{config.local_output_dir}/"]
+
+    local_out = Path(config.local_output_dir) / config.session_id
+    local_out.mkdir(parents=True, exist_ok=True)
+
+    download_outputs = [
+        "gcloud",
+        "compute",
+        "scp",
+        "--recurse",
+        f"{target}:{remote_repo}/outputs/{config.session_id}/stage3",
+        local_out.as_posix(),
+        "--project",
+        config.project_id,
+        "--zone",
+        config.zone,
+    ]
+
     teardown = [
         "gcloud",
         "compute",
@@ -257,7 +349,7 @@ def build_gcp_stage1_plan(
         "--quiet",
     ]
 
-    return GcpStage1Plan(
+    return GcpStage3Plan(
         config=config,
         worker_user=worker_user,
         local_session_dir=local_session_dir.as_posix(),
@@ -267,27 +359,29 @@ def build_gcp_stage1_plan(
             "clone_repo": clone_repo,
             "bootstrap": bootstrap,
             "upload_session": upload_session,
+            "upload_prior_stages": upload_prior_stages,
             "upload_participants": upload_participants,
-            "run_stage1": run_stage1,
+            "run_stage3": run_stage3,
             "download_outputs": download_outputs,
             "teardown": teardown,
         },
     )
 
 
-def run_gcp_stage1_plan(
-    plan: GcpStage1Plan,
+def run_gcp_stage3_plan(
+    plan: GcpStage3Plan,
     *,
     console: Console | None = None,
     keep_instance: bool = False,
 ) -> None:
-    step_order: list[Stage1CloudStep] = [
+    step_order: list[Stage3CloudStep] = [
         "vm_create",
         "clone_repo",
         "bootstrap",
         "upload_session",
+        "upload_prior_stages",
         "upload_participants",
-        "run_stage1",
+        "run_stage3",
         "download_outputs",
     ]
     created_instance = False
@@ -345,21 +439,21 @@ def run_gcp_stage1_plan(
                         gpu_type=candidate_gpu,
                         machine_type=candidate_machine if current_plan.config.gpu_enabled else current_plan.config.machine_type,
                     )
-                    current_plan = build_gcp_stage1_plan(
+                    current_plan = build_gcp_stage3_plan(
                         config=alt_config,
                         local_session_dir=Path(current_plan.local_session_dir),
                         worker_user=current_plan.worker_user,
                     )
                     command = current_plan.commands["vm_create"]
                     if console is not None:
-                        console.print(f"[bold]Stage 1 cloud:[/bold] `vm_create` (zone: {candidate_zone}, gpu: {candidate_gpu})")
+                        console.print(f"[bold]Stage 3 cloud:[/bold] `vm_create` (zone: {candidate_zone}, gpu: {candidate_gpu})")
                     res = subprocess.run(command)
                     if res.returncode == 0:
                         created_instance = True
                         vm_created_successfully = True
                         if console is not None:
-                            console.print("[bold]Stage 1 cloud:[/bold] Waiting for SSH daemon initialization (10s)...")
-                        time.sleep(10)
+                            console.print("[bold]Stage 3 cloud:[/bold] Waiting for SSH daemon initialization (20s)...")
+                        time.sleep(20)
                         break
                     else:
                         last_exc = subprocess.CalledProcessError(res.returncode, command)
@@ -369,35 +463,32 @@ def run_gcp_stage1_plan(
                             )
                 if not vm_created_successfully:
                     raise StageExecutionError(
-                        f"Stage 1 cloud step `vm_create` failed across all candidate configs."
+                        f"Stage 3 cloud step `vm_create` failed across all candidate configs."
                     ) from last_exc
             else:
                 command = current_plan.commands[step]
                 if console is not None:
-                    console.print(f"[bold]Stage 1 cloud:[/bold] `{step}`")
+                    console.print(f"[bold]Stage 3 cloud:[/bold] `{step}`")
                 
-                # Retry SSH steps up to 3 times to handle initial key propagation delay
-                max_retries = 3 if step in ("clone_repo", "bootstrap", "run_stage1") else 1
-                for attempt in range(1, max_retries + 1):
-                    res = subprocess.run(command)
-                    if res.returncode == 0:
-                        break
-                    if attempt < max_retries and res.returncode == 255:
+                # SSH/SCP retry logic for key propagation and network resilience
+                if step in ("clone_repo", "bootstrap", "upload_session", "upload_prior_stages", "upload_participants", "download_outputs"):
+                    step_success = False
+                    for attempt in range(1, 5):
+                        res = subprocess.run(command)
+                        if res.returncode == 0:
+                            step_success = True
+                            break
                         if console is not None:
-                            console.print(f"[yellow]SSH attempt {attempt} failed (code 255). Retrying in 5s...[/yellow]")
+                            console.print(f"[yellow]Stage 3 cloud `{step}` attempt {attempt} failed, retrying in 5s...[/yellow]")
                         time.sleep(5)
-                    else:
-                        raise StageExecutionError(f"Stage 1 cloud step `{step}` failed with exit code {res.returncode}.")
-    except subprocess.CalledProcessError as exc:
-        raise StageExecutionError(f"Stage 1 cloud step `{step}` failed with exit code {exc.returncode}.") from exc
+                    if not step_success:
+                        raise StageExecutionError(f"Stage 3 cloud step `{step}` failed after 4 attempts.")
+                else:
+                    res = subprocess.run(command)
+                    if res.returncode != 0:
+                        raise StageExecutionError(f"Stage 3 cloud step `{step}` failed with exit code {res.returncode}.")
     finally:
         if created_instance and not keep_instance:
-            teardown = current_plan.commands["teardown"]
             if console is not None:
-                console.print("[bold]Stage 1 cloud:[/bold] `teardown`")
-            try:
-                subprocess.run(teardown, check=True)
-            except subprocess.CalledProcessError as exc:
-                raise StageExecutionError(
-                    f"Stage 1 cloud teardown failed with exit code {exc.returncode}."
-                ) from exc
+                console.print("[bold]Stage 3 cloud:[/bold] `teardown`")
+            subprocess.run(current_plan.commands["teardown"])

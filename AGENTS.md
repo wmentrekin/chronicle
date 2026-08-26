@@ -74,6 +74,18 @@ Never mix responsibilities between them.
 
 ## Key Architectural Rules
 
+### 0. Git Branch & PR Isolation (Critical)
+
+Whenever executing feature work or pipeline stage changes via `/work`:
+
+* **Never commit or execute stage feature work directly on `main`.**
+* Immediately after the pre-execution checkpoint, create and switch to a feature branch (`git checkout -b work/<feature-slug>`).
+* Subagents and execution tasks must operate on the feature branch.
+* Complete execution by pushing the feature branch and opening a pull request via GitHub CLI (`gh pr create --fill` or `gh pr create --title ... --body ...`).
+* Verification findings must be reported on the PR.
+
+---
+
 ### 1. Stage Isolation (Critical)
 
 Each stage must:
@@ -320,6 +332,7 @@ Rules:
 
 * never expose raw data externally
 * avoid logging sensitive content
+* NEVER put actual family names, personal names, or sensitive identifiers in git commit messages, branch names, PR titles, or PR descriptions. Always use session IDs (e.g. `2026-02-24_interview_paternal-grandparents`) or generic participant roles (`interviewer`, `paternal_grandmother`, `paternal_grandfather`).
 * do not commit anything under:
 
   * `inputs/`

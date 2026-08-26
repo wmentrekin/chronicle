@@ -65,7 +65,12 @@ def _env_int(name: str, default: int) -> int:
 
 def require_ollama_config(model: str) -> None:
     available_models = list_ollama_models()
-    if model in available_models:
+    normalized_model = model if ":" in model else f"{model}:latest"
+    if (
+        model in available_models
+        or normalized_model in available_models
+        or any(m.startswith(f"{model}:") for m in available_models)
+    ):
         return
     raise StageExecutionError(
         "Stage 3 `llm` mode requires a local Ollama model before final identity artifacts are written.\n\n"
@@ -201,17 +206,57 @@ def _run_ollama_json_messages(
     content = message.get("content") if isinstance(message, dict) else None
     if not content:
         raise StageExecutionError("Ollama speaker mapping returned an empty response.")
+    raw_text = content.strip()
+    if raw_text.startswith("```json"):
+        raw_text = raw_text.removeprefix("```json").removesuffix("```").strip()
+    elif raw_text.startswith("```"):
+        raw_text = raw_text.removeprefix("```").removesuffix("```").strip()
+
     try:
-        response_payload = json.loads(content)
+        response_payload = json.loads(raw_text)
     except json.JSONDecodeError as exc:
-        raise StageExecutionError("Ollama speaker mapping did not return valid JSON.") from exc
+        raise StageExecutionError(f"Ollama speaker mapping did not return valid JSON: {raw_text[:200]}") from exc
 
     usage["input_tokens"] = payload.get("prompt_eval_count", usage["input_tokens"])
     usage["output_tokens"] = payload.get("eval_count")
 
-    speaker_map = response_payload.get("speaker_map")
+    speaker_map = None
+    if isinstance(response_payload, list):
+        speaker_map = response_payload
+    elif isinstance(response_payload, dict):
+        for key in ("speaker_map", "speakers", "assignments", "mappings", "results", "data"):
+            val = response_payload.get(key)
+            if isinstance(val, list):
+                speaker_map = val
+                break
+            elif isinstance(val, dict):
+                speaker_map = [
+                    {
+                        "speaker_label": str(k),
+                        "assigned_person": str(v),
+                        "confidence": "Confirmed",
+                        "reasoning": "LLM content reasoning",
+                    }
+                    for k, v in val.items()
+                ]
+                break
+
+        if speaker_map is None:
+            entries = []
+            for k, v in response_payload.items():
+                if isinstance(v, str):
+                    entries.append({"speaker_label": k, "assigned_person": v, "confidence": "Confirmed", "reasoning": "LLM reasoning"})
+                elif isinstance(v, dict) and ("assigned_person" in v or "person" in v):
+                    person = v.get("assigned_person") or v.get("person")
+                    entries.append({"speaker_label": k, "assigned_person": str(person), "confidence": v.get("confidence", "Confirmed"), "reasoning": v.get("reasoning", "")})
+            if entries:
+                speaker_map = entries
+
     if not isinstance(speaker_map, list):
-        raise StageExecutionError("Ollama speaker mapping response must contain a `speaker_map` list.")
+        raise StageExecutionError(
+            f"Ollama speaker mapping response must contain a speaker_map list or dictionary mapping. "
+            f"Got: {list(response_payload.keys()) if isinstance(response_payload, dict) else type(response_payload)}"
+        )
     return speaker_map, usage
 
 
