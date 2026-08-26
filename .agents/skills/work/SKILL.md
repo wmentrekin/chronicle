@@ -1,6 +1,14 @@
 ---
 name: work
-description: Run the full workflow as an outward-facing orchestrator that classifies the work, keeps the user conversation active, spawns subagents, updates a live status board, and moves through discovery, planning, execution, and verification.
+description: >
+  Primary engineering workflow for building, fixing, investigating, designing,
+  planning, implementing, debugging, refactoring, modifying, reviewing, or
+  testing code in this repository. Use for any substantive development task:
+  new features, bug fixes, pipeline or model changes, infrastructure changes,
+  architecture decisions, or code review. Coordinates requirements
+  clarification, repository and platform research, scoped subagents, planning
+  with an explicit user checkpoint, bounded execution, review, and testing.
+  Do not use for trivial one-line edits or pure Q&A with no code change.
 ---
 
 # Workflow Position
@@ -19,6 +27,10 @@ It owns the conversation with the user and coordinates all internal workflow sta
 6. `.agents/references/branch-and-pr-workflow.md`
 7. the mode-relevant templates in `.agents/templates/`
 
+Re-read `docs/<feature>/status.yaml` and these core files again at every internal stage
+transition (discovery→planning, planning→execution, execution→verification), not only once at
+session start — see `.agents/AGENTS.md`'s "Re-Anchor at Every Stage Transition" section.
+
 # Must Spawn
 
 `$work` is orchestration-first.
@@ -27,6 +39,22 @@ Default behavior:
 - use subagents for research, review, implementation, and testing
 - keep the main session focused on coordination, synthesis, status updates, and user discussion
 - do not do substantive editing or deep analysis in the main session unless the work slice is truly tiny and spawning would add more overhead than value
+
+## Spawning a Role
+
+Every agent under `.agents/agents/<role>/agent.md` is a portable role brief, not
+a tool-specific persona registration. To act as (or spawn) a role:
+
+1. read `.agents/agents/<role>/agent.md` in full
+2. hand its content, plus the task-specific handoff, to whatever generic
+   delegation primitive the current tool exposes (a general-purpose subagent
+   call, an agent-spawning tool, etc.)
+3. never assume the role name itself is a recognized subagent type — the
+   brief's content is what defines the role, not a registration step
+
+This works identically regardless of whether the current tool has a native
+named-subagent format. See `.agents/references/provider-notes.md` for the
+verified mechanics per tool.
 
 # Inputs
 
@@ -137,18 +165,28 @@ Treat these as internal states, not separate user-facing commands.
 # Process
 
 1. classify the work mode
-2. create or update `docs/<feature>/status.yaml`
-3. run discovery only to the depth needed by the selected mode
-4. create `requirements.yaml` if the mode requires it
-5. create `plan.yaml` if the mode requires it
-6. stop for the required pre-execution checkpoint
-7. create the feature branch (and worktrees, if the plan calls for parallel domains) per
-   `.agents/references/branch-and-pr-workflow.md`
-8. spawn the routed domain (or generalist) agents for bounded execution
-9. update `implementation-report.yaml`
-10. open the PR per `.agents/references/branch-and-pr-workflow.md`
-11. run verification with reviewer and tester agents, posting findings to the PR
-12. either complete, loop back once or twice, or stop and ask the user for direction
+2. create the feature branch per `.agents/references/branch-and-pr-workflow.md` — before any
+   `docs/<feature>/*.yaml` artifact is written, for every mode including quick-fix and
+   investigation (never commit directly to the base/main branch)
+3. create or update `docs/<feature>/status.yaml`, recording `branching.branch_name`
+4. run discovery only to the depth needed by the selected mode
+5. create `requirements.yaml` if the mode requires it
+6. create `plan.yaml` if the mode requires it, copying `branching.branch_name` from
+   `status.yaml` rather than re-deciding it
+7. stop for the required pre-execution checkpoint
+8. create worktrees, if the plan calls for parallel domains, per
+   `.agents/references/branch-and-pr-workflow.md` (the feature branch itself already exists
+   from step 2)
+9. spawn the routed domain (or generalist) agents for bounded execution
+10. update `implementation-report.yaml`
+11. open the PR per `.agents/references/branch-and-pr-workflow.md`
+12. run verification with reviewer and tester agents, posting findings to the PR
+13. either complete, loop back once or twice, or stop and ask the user for direction
+14. once the user explicitly confirms they are merging the PR, delete the entire
+    `docs/<feature>/` directory from the branch (`git rm -r`) and push that removal as the final
+    commit before merge — these are `$work`'s own ephemeral coordination artifacts, not
+    deliverables; never delete pre-existing project documentation outside `docs/<feature>/`. See
+    `.agents/references/branch-and-pr-workflow.md`'s "Completion" section.
 
 # Loop Cap
 

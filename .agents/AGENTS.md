@@ -4,30 +4,33 @@ Use this file as the entry point when these workflow assets are imported into a 
 
 ## Command Convention
 
-This workflow is invoked as `/work` in all three supported tools:
+This workflow is invoked as `/work` on every supported tool — each tool converts a skill
+folder named `work` into a native `/work` slash command. Plain-text `$work` mentions also
+work everywhere, either by triggering description-matched activation or as an explicit ask.
 
-- Claude Code: `/work`, discovered via `.claude/skills/work`
-- Codex: `/work` (or `$work` mention), discovered via `.codex/skills/work`
-- Antigravity: `/work`, discovered natively from `.agents/workflows/work.md`
+`/work` and `$work` are the same conceptual entry point; do not route the user across
+multiple top-level phase commands.
 
-See "Tool Compatibility" below for how each of these paths is populated.
-
-Do not route the user across multiple top-level phase commands.
+See "Tool Compatibility" below for how each tool discovers the skill, and
+`.agents/references/provider-notes.md` for the full verified mechanics.
 
 ## Tool Compatibility
 
-These assets are written to work natively across Claude Code, Codex, and Antigravity:
+`.agents/skills/work/SKILL.md` is the single canonical source, written to the open Agent
+Skills standard (agentskills.io). As of this standard's adoption, Codex CLI and Antigravity
+both read `.agents/skills/` natively — only Claude Code needs an adapter:
 
-| Concept | Claude Code | Codex | Antigravity |
-|---|---|---|---|
-| Invokable skill | `.claude/skills/work/SKILL.md` | `.codex/skills/work/SKILL.md` | `.agents/workflows/work.md` |
-| Persona/subagent | n/a (role-played via prompt) | n/a (role-played via prompt) | `.agents/agents/<name>/agent.md` |
+| Tool | Skill discovery | Setup required |
+|---|---|---|
+| Claude Code | `.claude/skills/work` (symlink to canonical source) | Run `.agents/scripts/link-claude-skills.sh` once after import, and again after `git subtree pull` if skills are added or removed |
+| Codex CLI | `.agents/skills/work/SKILL.md`, read directly | None |
+| Antigravity (IDE + `agy` CLI) | `.agents/skills/work/SKILL.md`, read directly | None |
 
-`.agents/skills/work/SKILL.md` is the single canonical source. Antigravity reads `.agents/`
-directly, so `.agents/workflows/work.md` and `.agents/agents/*/agent.md` work with no setup.
-Claude Code and Codex look outside `.agents/`, so run `.agents/scripts/link-tools.sh` once
-after import (and again after `git subtree pull` if skills are added or removed) to symlink
-`.claude/skills/work` and `.codex/skills/work` back to the canonical source.
+Gemini CLI is sunset (2026-06-18) and replaced by Antigravity CLI (`agy`), which shares
+Antigravity's harness — it is no longer a distinct target.
+
+Subagent personas (`.agents/agents/<name>/agent.md`) are portable role briefs on every tool,
+not tool-specific registrations — see `.agents/references/provider-notes.md`.
 
 ## First Read Order
 
@@ -40,6 +43,19 @@ When starting in a project repo, read in this order:
 5. any referenced checklist or guide in `.agents/references/`
 
 Do not rely on memory of the workflow. Re-anchor to these files explicitly.
+
+## Re-Anchor at Every Stage Transition
+
+The First Read Order above is not a one-time, session-start-only action. Re-read
+`docs/<feature>/status.yaml` plus the relevant core workflow file(s) (at minimum
+`.agents/AGENTS.md` and `.agents/skills/work/SKILL.md`) at every internal stage transition:
+discovery→planning, planning→execution, and execution→verification — not only once at session
+start.
+
+This is good practice on any tool, and it specifically hedges against instruction loss around
+context compaction: long sessions can drop or de-prioritize earlier context, including the
+process instructions read at session start, regardless of which tool is running this workflow.
+Re-reading at each transition costs little and catches drift before it compounds.
 
 ## Workflow Model
 
@@ -75,10 +91,6 @@ These are internal states, not separate user-facing commands.
 ## Skills
 
 - `.agents/skills/work/SKILL.md`
-
-## Workflows
-
-- `.agents/workflows/work.md` (Antigravity-native entry point; points back at the skill above)
 
 ## Agents
 
@@ -116,6 +128,14 @@ Expected project-local outputs:
 - `docs/<feature>/plan.yaml`
 - `docs/<feature>/implementation-report.yaml`
 
+These outputs are ephemeral: they are `$work`'s own live coordination scratch state, not
+project deliverables. Once the user explicitly confirms they are merging the feature's PR,
+`docs/<feature>/` is deleted from the branch (`git rm -r`) and that removal is pushed as the
+final commit before merge — see `.agents/references/branch-and-pr-workflow.md`'s "Completion"
+section. This applies only to `$work`'s own generated `docs/<feature>/` directory; any
+genuinely pre-existing project documentation the feature touched is unaffected and must stay
+updated in place.
+
 ## References
 
 - `.agents/references/workflow-architecture.md`
@@ -125,9 +145,24 @@ Expected project-local outputs:
 - `.agents/references/verification-checklist.md`
 - `.agents/references/engineering-standards.md`
 - `.agents/references/branch-and-pr-workflow.md`
+- `.agents/references/provider-notes.md`
+
+## Root Instruction Strategy
+
+This repo's own root files (`AGENTS.md`, `README.md`) describe the shared framework, not any
+consuming project's architecture. A consuming project's own root `AGENTS.md`/`CLAUDE.md`
+should stay responsible for that project's specifics.
+
+Optionally, add a short pointer to the shared workflow in the consuming project's own root
+file(s) — see `.agents/templates/root-instructions-snippet.md`. This is not required for
+discovery (skills are found natively per "Tool Compatibility" above) but improves activation
+reliability on tools that always load their root instruction file as context.
 
 ## Core Rules
 
+- Never commit directly to the base/main branch, under any mode — all code and doc changes,
+  including `$work`'s own `docs/<feature>/` artifacts, land via a feature branch and PR. See
+  `.agents/references/branch-and-pr-workflow.md`.
 - Keep the orchestrator active in the user conversation.
 - Keep most substantive work in subagents.
 - Keep requirements, planning, execution, and verification as internal states.
